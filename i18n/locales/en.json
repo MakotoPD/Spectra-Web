@@ -1,0 +1,155 @@
+{
+  "meta": {
+    "title": "Spectra Launcher — The modern launcher for modded Minecraft",
+    "description": "The modern desktop launcher for modded Minecraft. Instances, mods, worlds and skins — with built-in Modrinth & CurseForge browsers and every major loader, in one fast app."
+  },
+  "nav": {
+    "features": "Features",
+    "loaders": "Loaders",
+    "download": "Download",
+    "faq": "FAQ",
+    "github": "GitHub"
+  },
+  "hero": {
+    "badgeFree": "Free & open source",
+    "title1": "Mod it.",
+    "title2": "Manage it.",
+    "title3": "Play it.",
+    "subtitle": "The modern desktop launcher for modded Minecraft. Instances, mods, worlds and skins — with built-in Modrinth & CurseForge browsers and every major loader, in one fast app.",
+    "downloadFor": "Download for {os}",
+    "allPlatforms": "All platforms"
+  },
+  "showcase": {
+    "eyebrow": "A look inside",
+    "heading": "Everything you play, in one place.",
+    "tabs": {
+      "home": "Home",
+      "mods": "Mods",
+      "skins": "Skins",
+      "worlds": "Worlds",
+      "settings": "Settings"
+    }
+  },
+  "features": {
+    "eyebrow": "Features",
+    "heading": "Built for the way you actually play.",
+    "subheading": "From a hundred-mod pack to a quick vanilla world — Spectra keeps it organized and lightning fast.",
+    "items": {
+      "instances": {
+        "title": "Instance management",
+        "desc": "Organize packs into groups and favorites. Duplicate, configure, and launch in a click."
+      },
+      "mods": {
+        "title": "One-click mods",
+        "desc": "Browse and install from Modrinth and CurseForge without leaving the app. Enable, disable, update."
+      },
+      "skins": {
+        "title": "Skins & capes",
+        "desc": "Upload, preview in 3D, and switch skins and capes — Classic or Slim — right from the launcher."
+      },
+      "worlds": {
+        "title": "Worlds & screenshots",
+        "desc": "Jump straight into any world and browse every screenshot across all your instances."
+      },
+      "fast": {
+        "title": "Fast & lightweight",
+        "desc": "A snappy native desktop app with managed Java — minimal fuss, maximum framerate."
+      },
+      "themes": {
+        "title": "Themes & accents",
+        "desc": "Dark and OLED themes plus a palette of accent colors to make the launcher yours."
+      }
+    }
+  },
+  "loaders": {
+    "eyebrow": "Mod loaders",
+    "heading": "Every loader. Zero hassle.",
+    "subheading": "Create an instance with any loader and switch whenever you like.",
+    "notes": {
+      "fabric": "Lightweight",
+      "forge": "Classic",
+      "neoforge": "Modern Forge",
+      "quilt": "Fabric-compatible",
+      "vanilla": "No mods"
+    }
+  },
+  "download": {
+    "eyebrow": "Download",
+    "heading": "Get Spectra for your platform.",
+    "version": "Version {version} · Java 17+ recommended (21 for newer versions).",
+    "buildSource": "Prefer to build it yourself? Grab the source on {github}.",
+    "platforms": {
+      "windows": {
+        "name": "Windows",
+        "sub": "Windows 10 / 11",
+        "builds": { "installer": "Installer", "portable": "Portable" }
+      },
+      "macos": {
+        "name": "macOS",
+        "sub": "macOS 11+",
+        "builds": { "arm": "Apple Silicon", "intel": "Intel" }
+      },
+      "linux": {
+        "name": "Linux",
+        "sub": "Most distributions",
+        "builds": { "universal": "Universal", "deb": "Debian / Ubuntu" }
+      }
+    }
+  },
+  "faq": {
+    "eyebrow": "FAQ",
+    "heading": "Questions, answered.",
+    "items": {
+      "free": {
+        "q": "Is Spectra Launcher free?",
+        "a": "Yes — Spectra is completely free and open source under the MIT license. The full source lives on GitHub."
+      },
+      "platforms": {
+        "q": "Which platforms are supported?",
+        "a": "Windows, macOS (both Apple Silicon ARM and Intel x64), and Linux via .AppImage and .deb packages."
+      },
+      "java": {
+        "q": "Do I need to install Java myself?",
+        "a": "Spectra helps manage Java for you. Java 17+ is recommended, and 21 for the newest Minecraft versions."
+      },
+      "loaders": {
+        "q": "Which mod loaders can I use?",
+        "a": "Fabric, Forge, NeoForge, Quilt, and plain Vanilla. You can switch the loader on an instance at any time."
+      },
+      "mods": {
+        "q": "Where do the mods come from?",
+        "a": "From built-in Modrinth and CurseForge browsers — search, preview, and install without leaving the app."
+      },
+      "account": {
+        "q": "Do I need a Minecraft account?",
+        "a": "A valid Microsoft/Minecraft account is required only if you want to play on online servers. However, you can also use an offline account to play in single-player mode and on servers that have the online feature disabled."
+      }
+    }
+  },
+  "cta": {
+    "heading": "Ready to launch?",
+    "subheading": "Download Spectra and bring every instance, mod, and world into one beautiful app.",
+    "download": "Download for {os}",
+    "star": "Star on GitHub"
+  },
+  "footer": {
+    "tagline": "A modern, open-source desktop launcher for modded Minecraft. Made by MakotoPD.",
+    "license": "{version} · GNU GPLv3 License",
+    "product": "Product",
+    "resources": "Resources",
+    "links": {
+      "features": "Features",
+      "loaders": "Mod loaders",
+      "download": "Download",
+      "github": "GitHub",
+      "bug": "Report a bug",
+      "releases": "Releases",
+      "faq": "FAQ"
+    },
+    "legalLeft": "© {year} Spectra Launcher. Not affiliated with Mojang or Microsoft.",
+    "legalRight": "Minecraft is a trademark of Mojang Studios."
+  },
+  "lang": {
+    "label": "Language"
+  }
+}

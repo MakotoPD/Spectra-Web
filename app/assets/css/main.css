@@ -1,2 +1,74 @@
 @import "tailwindcss";
 @import "@nuxt/ui";
+
+@theme {
+  --font-sans: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-display: 'Space Grotesk', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: #05080f;
+  color: #eaf1fb;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+::selection {
+  background: rgba(56, 189, 248, 0.35);
+  color: #fff;
+}
+
+/* Offset anchored sections so the sticky header doesn't cover their tops. */
+section[id] {
+  scroll-margin-top: 5rem;
+}
+
+/* Ambient design animations (ported from the Spectra Launcher design). */
+@keyframes spectrafloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-16px); }
+}
+@keyframes spectradrift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(40px, -30px) scale(1.1); }
+  66% { transform: translate(-30px, 20px) scale(0.95); }
+}
+@keyframes spectragrid {
+  to { background-position: 0 -88px; }
+}
+@keyframes spectrapulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+/* When JS/GSAP is available, keep animated elements hidden until their
+   entrance tween runs (prevents a flash of un-animated content). */
+.gsap [data-reveal],
+.gsap [data-hero],
+.gsap [data-hero-art] {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gsap [data-reveal],
+  .gsap [data-hero],
+  .gsap [data-hero-art] {
+    opacity: 1;
+  }
+  [style*="spectrafloat"],
+  [style*="spectradrift"],
+  [style*="spectragrid"],
+  [style*="spectrapulse"] {
+    animation: none !important;
+  }
+}

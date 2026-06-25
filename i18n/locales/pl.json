@@ -1,0 +1,155 @@
+{
+  "meta": {
+    "title": "Spectra Launcher — nowoczesny launcher do moddowanego Minecrafta",
+    "description": "Nowoczesny launcher na komputer do moddowanego Minecrafta. Instancje, mody, światy i skiny — z wbudowanymi przeglądarkami Modrinth i CurseForge oraz każdym popularnym loaderem, w jednej szybkiej aplikacji."
+  },
+  "nav": {
+    "features": "Funkcje",
+    "loaders": "Loadery",
+    "download": "Pobierz",
+    "faq": "FAQ",
+    "github": "GitHub"
+  },
+  "hero": {
+    "badgeFree": "Darmowy i open source",
+    "title1": "Moduj.",
+    "title2": "Zarządzaj.",
+    "title3": "Graj.",
+    "subtitle": "Nowoczesny launcher na komputer do moddowanego Minecrafta. Instancje, mody, światy i skiny — z wbudowanymi przeglądarkami Modrinth i CurseForge oraz każdym popularnym loaderem, w jednej szybkiej aplikacji.",
+    "downloadFor": "Pobierz na {os}",
+    "allPlatforms": "Wszystkie platformy"
+  },
+  "showcase": {
+    "eyebrow": "Zajrzyj do środka",
+    "heading": "Wszystko, w co grasz, w jednym miejscu.",
+    "tabs": {
+      "home": "Ekran główny",
+      "mods": "Mody",
+      "skins": "Skiny",
+      "worlds": "Światy",
+      "settings": "Ustawienia"
+    }
+  },
+  "features": {
+    "eyebrow": "Funkcje",
+    "heading": "Stworzony pod to, jak naprawdę grasz.",
+    "subheading": "Od paczki ze stoma modami po szybki świat vanilla — Spectra trzyma to w porządku i działa błyskawicznie.",
+    "items": {
+      "instances": {
+        "title": "Zarządzanie instancjami",
+        "desc": "Organizuj paczki w grupy i ulubione. Duplikuj, konfiguruj i uruchamiaj jednym kliknięciem."
+      },
+      "mods": {
+        "title": "Mody jednym kliknięciem",
+        "desc": "Przeglądaj i instaluj z Modrinth i CurseForge bez wychodzenia z aplikacji. Włączaj, wyłączaj, aktualizuj."
+      },
+      "skins": {
+        "title": "Skiny i peleryny",
+        "desc": "Wgrywaj, podglądaj w 3D i zmieniaj skiny oraz peleryny — Classic lub Slim — prosto z launchera."
+      },
+      "worlds": {
+        "title": "Światy i zrzuty ekranu",
+        "desc": "Wskocz prosto do dowolnego świata i przeglądaj wszystkie zrzuty ekranu ze wszystkich instancji."
+      },
+      "fast": {
+        "title": "Szybki i lekki",
+        "desc": "Sprawna, natywna aplikacja z zarządzaną Javą — minimum zachodu, maksimum klatek."
+      },
+      "themes": {
+        "title": "Motywy i akcenty",
+        "desc": "Motywy Dark i OLED oraz paleta kolorów akcentu, by launcher był Twój."
+      }
+    }
+  },
+  "loaders": {
+    "eyebrow": "Loadery modów",
+    "heading": "Każdy loader. Zero zachodu.",
+    "subheading": "Utwórz instancję z dowolnym loaderem i zmieniaj go, kiedy chcesz.",
+    "notes": {
+      "fabric": "Lekki",
+      "forge": "Klasyczny",
+      "neoforge": "Nowoczesny Forge",
+      "quilt": "Zgodny z Fabric",
+      "vanilla": "Bez modów"
+    }
+  },
+  "download": {
+    "eyebrow": "Pobierz",
+    "heading": "Pobierz Spectrę na swoją platformę.",
+    "version": "Wersja {version} · Zalecana Java 17+ (21 dla nowszych wersji).",
+    "buildSource": "Wolisz zbudować samodzielnie? Pobierz kod źródłowy na {github}.",
+    "platforms": {
+      "windows": {
+        "name": "Windows",
+        "sub": "Windows 10 / 11",
+        "builds": { "installer": "Instalator", "portable": "Przenośna" }
+      },
+      "macos": {
+        "name": "macOS",
+        "sub": "macOS 11+",
+        "builds": { "arm": "Apple Silicon", "intel": "Intel" }
+      },
+      "linux": {
+        "name": "Linux",
+        "sub": "Większość dystrybucji",
+        "builds": { "universal": "Uniwersalna", "deb": "Debian / Ubuntu" }
+      }
+    }
+  },
+  "faq": {
+    "eyebrow": "FAQ",
+    "heading": "Pytania i odpowiedzi.",
+    "items": {
+      "free": {
+        "q": "Czy Spectra Launcher jest darmowy?",
+        "a": "Tak — Spectra jest całkowicie darmowa i open source na licencji GNU GPLv3. Pełny kod źródłowy jest na GitHubie."
+      },
+      "platforms": {
+        "q": "Jakie platformy są wspierane?",
+        "a": "Windows, macOS (Apple Silicon ARM i Intel x64) oraz Linux przez paczki .AppImage i .deb."
+      },
+      "java": {
+        "q": "Czy muszę sam instalować Javę?",
+        "a": "Spectra pomaga zarządzać Javą za Ciebie. Zalecana jest Java 17+, a 21 dla najnowszych wersji Minecrafta."
+      },
+      "loaders": {
+        "q": "Jakich loaderów modów mogę użyć?",
+        "a": "Fabric, Forge, NeoForge, Quilt oraz zwykła Vanilla. Loader w instancji możesz zmienić w każdej chwili."
+      },
+      "mods": {
+        "q": "Skąd pochodzą mody?",
+        "a": "Z wbudowanych przeglądarek Modrinth i CurseForge — szukaj, podglądaj i instaluj bez wychodzenia z aplikacji."
+      },
+      "account": {
+        "q": "Czy potrzebuję konta Minecraft?",
+        "a": "Tylko jeśli chcesz grać na serwerach online wymagane jest ważne konto Microsoft / Minecraft. Ale możesz również używać konta offline do grania w trybie singleplayer i na serwerach które mają wyłączoną funkcję online."
+      }
+    }
+  },
+  "cta": {
+    "heading": "Gotowy, by zagrać?",
+    "subheading": "Pobierz Spectrę i zbierz każdą instancję, moda i świat do jednej pięknej aplikacji.",
+    "download": "Pobierz na {os}",
+    "star": "Daj gwiazdkę na GitHubie"
+  },
+  "footer": {
+    "tagline": "Nowoczesny, open-source'owy launcher na komputer do moddowanego Minecrafta. Tworzony przez MakotoPD.",
+    "license": "{version} · Licencja GNU GPLv3",
+    "product": "Produkt",
+    "resources": "Zasoby",
+    "links": {
+      "features": "Funkcje",
+      "loaders": "Loadery modów",
+      "download": "Pobierz",
+      "github": "GitHub",
+      "bug": "Zgłoś błąd",
+      "releases": "Wydania",
+      "faq": "FAQ"
+    },
+    "legalLeft": "© {year} Spectra Launcher. Niepowiązany z Mojang ani Microsoft.",
+    "legalRight": "Minecraft jest znakiem towarowym Mojang Studios."
+  },
+  "lang": {
+    "label": "Język"
+  }
+}
