@@ -28,14 +28,23 @@ const authed = ref(false)
 const checking = ref(true)
 const token = ref('')
 const loginError = ref('')
+const serverError = ref('')
 const stats = ref<Stats | null>(null)
 
 async function loadStats() {
+  serverError.value = ''
   try {
     stats.value = await $fetch<Stats>('/api/admin/stats')
     authed.value = true
-  } catch {
-    authed.value = false
+  } catch (e) {
+    const err = e as { statusCode?: number, statusMessage?: string, data?: { message?: string } }
+    if (err?.statusCode === 401) {
+      authed.value = false
+    } else {
+      // Logged in, but the stats endpoint failed (e.g. DB issue) — show it.
+      authed.value = true
+      serverError.value = err?.data?.message || err?.statusMessage || 'Server error'
+    }
   } finally {
     checking.value = false
   }
@@ -83,6 +92,18 @@ const shortDay = (d: string) => d.slice(5) // MM-DD
           <p v-if="loginError" class="text-sm text-red-400">{{ loginError }}</p>
           <UButton type="submit" block :loading="checking" label="Sign in" />
         </form>
+      </UCard>
+    </div>
+
+    <!-- logged in, but stats failed (surfaces the real server error) -->
+    <div v-else-if="serverError" class="mx-auto max-w-lg">
+      <UCard>
+        <template #header><h1 class="text-lg font-semibold text-red-400">Stats failed to load</h1></template>
+        <p class="wrap-break-word font-mono text-sm text-white/70">{{ serverError }}</p>
+        <div class="mt-4 flex gap-2">
+          <UButton icon="i-lucide-refresh-cw" label="Retry" @click="loadStats" />
+          <UButton color="neutral" variant="soft" icon="i-lucide-log-out" label="Sign out" @click="logout" />
+        </div>
       </UCard>
     </div>
 

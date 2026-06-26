@@ -38,6 +38,15 @@ function countBy(db: Database, eventName: string, expr: string, since: string, l
 
 export default defineEventHandler((event) => {
   requireAdmin(event)
+  try {
+    return buildStats()
+  } catch (e) {
+    console.error('[telemetry] stats failed:', e)
+    throw createError({ statusCode: 500, statusMessage: (e as Error)?.message || 'stats failed' })
+  }
+})
+
+function buildStats() {
   const db = useTelemetryDb()
 
   const now = Date.now()
@@ -82,4 +91,4 @@ export default defineEventHandler((event) => {
     mcVersions: countBy(db, 'launch', "json_extract(props, '$.mc')", d30),
     features: countBy(db, 'feature', "json_extract(props, '$.name')", d30, 12),
   }
-})
+}

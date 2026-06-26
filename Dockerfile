@@ -22,6 +22,13 @@ WORKDIR /app
 
 COPY --from=builder /app/.output ./.output
 
+# better-sqlite3 is a native addon that Nitro can't bundle. Install it (compiled
+# for this exact musl/arch image) so `require('better-sqlite3')` resolves at
+# runtime via /app/node_modules. Build tools are removed afterwards to stay slim.
+RUN apk add --no-cache python3 make g++ \
+    && npm install --omit=dev better-sqlite3@12.11.1 \
+    && apk del python3 make g++
+
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=3000
