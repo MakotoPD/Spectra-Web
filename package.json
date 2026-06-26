@@ -46,5 +46,10 @@
     "@iconify-json/lucide": "^1.2.114",
     "@iconify-json/simple-icons": "^1.2.87",
     "@types/better-sqlite3": "^7.6.13"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3"
+    ]
   }
 }
