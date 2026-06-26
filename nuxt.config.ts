@@ -3,6 +3,15 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
 
+  // Server-only secrets for the telemetry admin panel. Set via env in prod:
+  //   ADMIN_TOKEN          — password for /admin
+  //   SPECTRA_INGEST_KEY   — optional soft key the launcher sends (anti-spam)
+  //   TELEMETRY_DB_PATH    — where the SQLite file lives (default ./data/telemetry.db)
+  runtimeConfig: {
+    adminToken: process.env.ADMIN_TOKEN || '',
+    ingestKey: process.env.SPECTRA_INGEST_KEY || '',
+  },
+
   css: ['~/assets/css/main.css'],
   modules: [
     '@nuxt/image',
