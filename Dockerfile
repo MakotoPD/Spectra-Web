@@ -16,10 +16,15 @@ COPY . .
 RUN pnpm build
 
 # Nitro copies the better-sqlite3 JS into .output but NOT its compiled native
-# addon (.node), so `bindings` can't find it at runtime. Resolve the binary that
-# was compiled in this stage (through pnpm's symlinks) and drop it into the
-# server output where bindings looks for it.
-RUN node -e "const fs=require('fs');const p=require.resolve('better-sqlite3/build/Release/better_sqlite3.node');const d='.output/server/node_modules/better-sqlite3/build/Release';fs.mkdirSync(d,{recursive:true});fs.copyFileSync(p,d+'/better_sqlite3.node');console.log('embedded',p)"
+# addon (.node), so `bindings` can't find it at runtime. Locate the binary that
+# was compiled in this stage (pnpm hides it under node_modules/.pnpm/...) and
+# drop it into the server output where bindings looks for it.
+RUN set -e; \
+    BIN="$(find /app/node_modules -name better_sqlite3.node -path '*better-sqlite3*' | head -n1)"; \
+    test -n "$BIN"; \
+    mkdir -p .output/server/node_modules/better-sqlite3/build/Release; \
+    cp "$BIN" .output/server/node_modules/better-sqlite3/build/Release/better_sqlite3.node; \
+    echo "embedded $BIN"
 
 # Stage 2: Production image
 FROM node:22-alpine AS production
