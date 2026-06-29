@@ -151,14 +151,35 @@ onUnmounted(() => ctx?.revert())
           <div
             style="position:relative;z-index:1;border-radius:14px;overflow:hidden;border:1px solid rgba(125,211,252,.22);box-shadow:0 50px 120px -40px rgba(0,0,0,.9),0 0 0 1px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.06)"
           >
-            <img src="/screenshots/MainMenu.png" alt="Spectra Launcher home screen" style="display:block;width:100%;height:auto" >
+            <NuxtImg
+              src="/screenshots/MainMenu.png"
+              alt="Spectra Launcher home screen"
+              width="1345"
+              height="686"
+              sizes="sm:100vw md:60vw lg:820px"
+              format="webp"
+              quality="80"
+              fetchpriority="high"
+              loading="eager"
+              style="display:block;width:100%;height:auto"
+            />
           </div>
           <!-- Floating secondary card -->
           <div
             aria-hidden="true"
             style="position:absolute;z-index:2;left:-13%;bottom:-12%;width:38%;border-radius:11px;overflow:hidden;border:1px solid rgba(167,139,250,.3);box-shadow:0 30px 70px -28px rgba(0,0,0,.95);transform:rotate(-3deg);animation:spectrafloat 7s ease-in-out infinite"
           >
-            <img src="/screenshots/SkinsScreen.png" alt="" style="display:block;width:100%;height:auto" >
+            <NuxtImg
+              src="/screenshots/SkinsScreen.png"
+              alt=""
+              width="1372"
+              height="762"
+              sizes="sm:40vw lg:320px"
+              format="webp"
+              quality="75"
+              loading="lazy"
+              style="display:block;width:100%;height:auto"
+            />
           </div>
         </div>
       </div>
