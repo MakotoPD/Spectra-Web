@@ -10,6 +10,11 @@ export default defineNuxtConfig({
   runtimeConfig: {
     adminToken: process.env.ADMIN_TOKEN || '',
     ingestKey: process.env.SPECTRA_INGEST_KEY || '',
+    public: {
+      // Canonical site origin — used for canonical/og:url, hreflang, sitemap & robots.
+      // Override per-environment with NUXT_PUBLIC_SITE_URL.
+      siteUrl: process.env.NUXT_PUBLIC_SITE_URL || 'https://spectra.makoto.com.pl',
+    },
   },
 
   css: ['~/assets/css/main.css'],
@@ -32,8 +37,11 @@ export default defineNuxtConfig({
   },
 
   i18n: {
-    strategy: 'no_prefix',
+    // Default locale (en) stays at /, other locales get a prefix (/pl) so each
+    // language has its own indexable URL + automatic hreflang alternates.
+    strategy: 'prefix_except_default',
     defaultLocale: 'en',
+    baseUrl: process.env.NUXT_PUBLIC_SITE_URL || 'https://spectra.makoto.com.pl',
     bundle: { optimizeTranslationDirective: false },
     locales: [
       { code: 'en', name: 'English', language: 'en-US', file: 'en.json' },
@@ -49,6 +57,9 @@ export default defineNuxtConfig({
   app: {
     head: {
       htmlAttrs: { class: 'dark' },
+      meta: [
+        { name: 'theme-color', content: '#05080f' }
+      ],
       link: [
         { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
         { rel: 'preconnect', href: 'https://fonts.googleapis.com' },

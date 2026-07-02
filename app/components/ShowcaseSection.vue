@@ -2,11 +2,11 @@
 const { t } = useI18n()
 
 const shots = [
-  { key: 'home', src: '/screenshots/MainMenu.png' },
-  { key: 'mods', src: '/screenshots/InstanceScreen.png' },
-  { key: 'skins', src: '/screenshots/SkinsScreen.png' },
-  { key: 'worlds', src: '/screenshots/WorldsScreen.png' },
-  { key: 'settings', src: '/screenshots/Settings.png' }
+  { key: 'home', src: '/screenshots/MainMenu.png', w: 1345, h: 686 },
+  { key: 'mods', src: '/screenshots/InstanceScreen.png', w: 1345, h: 686 },
+  { key: 'skins', src: '/screenshots/SkinsScreen.png', w: 1372, h: 762 },
+  { key: 'worlds', src: '/screenshots/WorldsScreen.png', w: 1372, h: 762 },
+  { key: 'settings', src: '/screenshots/Settings.png', w: 1345, h: 686 }
 ] as const
 
 const active = ref(0)
@@ -49,11 +49,18 @@ const current = computed(() => shots[active.value]!)
       <div
         style="position:relative;border-radius:16px;overflow:hidden;border:1px solid rgba(125,211,252,.2);box-shadow:0 40px 90px -30px rgba(2,16,33,.9),0 0 60px rgba(56,189,248,.12);background:#0a0f1b"
       >
-        <img
+        <NuxtImg
+          :key="current.src"
           :src="current.src"
-          :alt="t(`showcase.tabs.${current.key}`)"
+          :alt="`Spectra Launcher — ${t(`showcase.tabs.${current.key}`)}`"
+          :width="current.w"
+          :height="current.h"
+          sizes="sm:100vw lg:1080px"
+          format="webp"
+          quality="80"
+          loading="lazy"
           style="display:block;width:100%;height:auto"
-        >
+        />
       </div>
     </div>
   </section>

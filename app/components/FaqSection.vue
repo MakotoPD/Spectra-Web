@@ -9,6 +9,28 @@ const items = computed(() =>
     content: t(`faq.items.${k}.a`)
   }))
 )
+
+// FAQPage structured data — eligible for rich results and easily quoted by
+// generative search engines.
+useHead(() => ({
+  script: [
+    {
+      type: 'application/ld+json',
+      innerHTML: JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'FAQPage',
+        mainEntity: keys.map(k => ({
+          '@type': 'Question',
+          name: t(`faq.items.${k}.q`),
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: t(`faq.items.${k}.a`)
+          }
+        }))
+      })
+    }
+  ]
+}))
 </script>
 
 <template>
