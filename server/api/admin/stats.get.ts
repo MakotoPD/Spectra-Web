@@ -90,5 +90,62 @@ function buildStats() {
     loaders: countBy(db, 'launch', "json_extract(props, '$.loader')", d30),
     mcVersions: countBy(db, 'launch', "json_extract(props, '$.mc')", d30),
     features: countBy(db, 'feature', "json_extract(props, '$.name')", d30, 12),
+    shares: buildShareStats(now),
+  }
+}
+
+/**
+ * Instance sharing (server/utils/share.ts). Lives in its own SQLite file, so a
+ * failure there must not take the telemetry dashboard down with it.
+ */
+function buildShareStats(now: number) {
+  try {
+    const db = useShareDb()
+    const ms = (days: number) => now - days * 86_400_000
+
+    const one = (sql: string, ...args: unknown[]) =>
+      ((db.prepare(sql).get(...args) as { n: number | null })?.n ?? 0)
+
+    // Created per day for the last 30 days (gaps filled with 0).
+    const raw = db
+      .prepare(
+        `SELECT date(created / 1000, 'unixepoch') AS label, COUNT(*) AS value
+         FROM shares WHERE created >= ? GROUP BY label ORDER BY label`,
+      )
+      .all(ms(29)) as Bucket[]
+    const map = new Map(raw.map(r => [r.label, r.value]))
+    const series: Bucket[] = []
+    for (let i = 29; i >= 0; i--) {
+      const d = dayKey(now - i * 86_400_000)
+      series.push({ label: d, value: map.get(d) ?? 0 })
+    }
+
+    const recent = db
+      .prepare(
+        `SELECT code, name, mc_version, loader, mods, size, downloads, created, expires
+         FROM shares ORDER BY created DESC LIMIT 15`,
+      )
+      .all() as Record<string, unknown>[]
+
+    return {
+      overview: {
+        created30: one('SELECT COUNT(*) AS n FROM shares WHERE created >= ?', ms(29)),
+        active: one('SELECT COUNT(*) AS n FROM shares WHERE expires > ?', now),
+        downloads30: one('SELECT SUM(downloads) AS n FROM shares WHERE created >= ?', ms(29)),
+        storedBytes: one('SELECT SUM(size) AS n FROM shares WHERE blob IS NOT NULL'),
+      },
+      series,
+      recent,
+      loaders: db
+        .prepare(
+          `SELECT loader AS label, COUNT(*) AS value FROM shares
+           WHERE created >= ? AND loader IS NOT NULL AND loader <> ''
+           GROUP BY label ORDER BY value DESC LIMIT 8`,
+        )
+        .all(ms(29)) as Bucket[],
+    }
+  } catch (e) {
+    console.error('[shares] stats failed:', e)
+    return null
   }
 }

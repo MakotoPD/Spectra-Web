@@ -151,5 +151,20 @@
   },
   "lang": {
     "label": "Language"
+  },
+  "share": {
+    "metaTitle": "{name} — shared modpack",
+    "metaDescription": "Open this shared Minecraft modpack in Spectra Launcher.",
+    "eyebrow": "Shared modpack",
+    "codeLabel": "Share code",
+    "modCount": "{n} mods",
+    "openBtn": "Open in Spectra Launcher",
+    "openHint": "Your browser will ask for permission to open the launcher.",
+    "noLauncher": "Don't have Spectra Launcher yet?",
+    "getLauncher": "Download Spectra",
+    "footerMeta": "{size} · {downloads} downloads · expires {expires}",
+    "notFoundTitle": "This code no longer works",
+    "notFoundDesc": "Share codes expire after 7 days. Ask for a fresh one.",
+    "backHome": "Back to homepage"
   }
 }

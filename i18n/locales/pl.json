@@ -151,5 +151,20 @@
   },
   "lang": {
     "label": "Język"
+  },
+  "share": {
+    "metaTitle": "{name} — udostępniona paczka",
+    "metaDescription": "Otwórz udostępnioną paczkę modów w Spectra Launcher.",
+    "eyebrow": "Udostępniona paczka",
+    "codeLabel": "Kod",
+    "modCount": "Modów: {n}",
+    "openBtn": "Otwórz w Spectra Launcher",
+    "openHint": "Przeglądarka poprosi o zgodę na uruchomienie launchera.",
+    "noLauncher": "Nie masz jeszcze Spectra Launcher?",
+    "getLauncher": "Pobierz Spectrę",
+    "footerMeta": "{size} · pobrań: {downloads} · wygasa {expires}",
+    "notFoundTitle": "Ten kod już nie działa",
+    "notFoundDesc": "Kody wygasają po 7 dniach. Poproś o nowy.",
+    "backHome": "Wróć na stronę główną"
   }
 }

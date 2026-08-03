@@ -3,6 +3,23 @@
 // server/api/admin/*). Not linked anywhere public.
 
 interface Bucket { label: string; value: number }
+interface ShareRow {
+  code: string
+  name: string | null
+  mc_version: string | null
+  loader: string | null
+  mods: number
+  size: number
+  downloads: number
+  created: number
+  expires: number
+}
+interface ShareStats {
+  overview: { created30: number; active: number; downloads30: number; storedBytes: number }
+  series: Bucket[]
+  recent: ShareRow[]
+  loaders: Bucket[]
+}
 interface Stats {
   generatedAt: number
   overview: {
@@ -20,6 +37,7 @@ interface Stats {
   loaders: Bucket[]
   mcVersions: Bucket[]
   features: Bucket[]
+  shares: ShareStats | null
 }
 
 useHead({ title: 'Spectra · Telemetry' })
@@ -75,6 +93,18 @@ function pct(value: number, list: Bucket[]) {
   return Math.round((value / max) * 100)
 }
 const shortDay = (d: string) => d.slice(5) // MM-DD
+
+const maxShares = computed(() => Math.max(1, ...(stats.value?.shares?.series.map(d => d.value) ?? [0])))
+function bytes(n: number) {
+  if (!n) return '0 B'
+  const kb = n / 1024
+  return kb < 1024 ? `${Math.round(kb)} KB` : `${(kb / 1024).toFixed(1)} MB`
+}
+/** Days left, or "expired" for codes whose blob has already been dropped. */
+function expiryLabel(expires: number) {
+  const days = Math.ceil((expires - Date.now()) / 86_400_000)
+  return days > 0 ? `${days}d` : 'expired'
+}
 </script>
 
 <template>
@@ -176,6 +206,87 @@ const shortDay = (d: string) => d.slice(5) // MM-DD
               <span class="w-10 shrink-0 text-right font-mono text-xs text-white/60">{{ b.value }}</span>
             </li>
           </ul>
+        </UCard>
+      </div>
+
+      <!-- instance sharing -->
+      <div v-if="stats.shares" class="space-y-4">
+        <h2 class="text-lg font-bold tracking-tight">Instance sharing</h2>
+
+        <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <UCard v-for="card in [
+            { label: 'Codes created (30d)', value: stats.shares.overview.created30.toLocaleString() },
+            { label: 'Live codes', value: stats.shares.overview.active.toLocaleString() },
+            { label: 'Redeems (30d)', value: stats.shares.overview.downloads30.toLocaleString() },
+            { label: 'Stored packs', value: bytes(stats.shares.overview.storedBytes) },
+          ]" :key="card.label" :ui="{ body: 'p-4' }">
+            <div class="text-2xl font-bold">{{ card.value }}</div>
+            <div class="mt-1 text-xs text-white/50">{{ card.label }}</div>
+          </UCard>
+        </div>
+
+        <div class="grid gap-4 md:grid-cols-2">
+          <UCard>
+            <template #header><h3 class="font-semibold">Codes created per day</h3></template>
+            <div class="flex h-32 items-end gap-1">
+              <div
+                v-for="d in stats.shares.series"
+                :key="d.label"
+                class="flex-1 rounded-t bg-primary-500/70 transition hover:bg-primary-400"
+                :style="{ height: Math.max(2, (d.value / maxShares) * 100) + '%' }"
+                :title="`${d.label}: ${d.value}`"
+              />
+            </div>
+            <div class="mt-2 flex justify-between text-[10px] text-white/40">
+              <span>{{ shortDay(stats.shares.series[0]?.label ?? '') }}</span>
+              <span>{{ shortDay(stats.shares.series.at(-1)?.label ?? '') }}</span>
+            </div>
+          </UCard>
+
+          <UCard>
+            <template #header><h3 class="font-semibold">Shared loaders (30d)</h3></template>
+            <p v-if="!stats.shares.loaders.length" class="text-sm text-white/40">No data yet.</p>
+            <ul v-else class="space-y-2">
+              <li v-for="b in stats.shares.loaders" :key="b.label" class="flex items-center gap-3">
+                <span class="w-24 shrink-0 truncate text-sm capitalize">{{ b.label }}</span>
+                <span class="relative h-2 flex-1 overflow-hidden rounded-full bg-white/8">
+                  <span class="absolute inset-y-0 left-0 rounded-full bg-primary-500" :style="{ width: pct(b.value, stats.shares.loaders) + '%' }" />
+                </span>
+                <span class="w-10 shrink-0 text-right font-mono text-xs text-white/60">{{ b.value }}</span>
+              </li>
+            </ul>
+          </UCard>
+        </div>
+
+        <UCard>
+          <template #header><h3 class="font-semibold">Latest codes</h3></template>
+          <p v-if="!stats.shares.recent.length" class="text-sm text-white/40">Nobody has shared an instance yet.</p>
+          <div v-else class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="text-left text-xs text-white/40">
+                <tr>
+                  <th class="pb-2 pr-3 font-medium">Code</th>
+                  <th class="pb-2 pr-3 font-medium">Name</th>
+                  <th class="pb-2 pr-3 font-medium">Version</th>
+                  <th class="pb-2 pr-3 text-right font-medium">Mods</th>
+                  <th class="pb-2 pr-3 text-right font-medium">Size</th>
+                  <th class="pb-2 pr-3 text-right font-medium">Redeems</th>
+                  <th class="pb-2 text-right font-medium">Expires</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="row in stats.shares.recent" :key="row.code" class="border-t border-white/6">
+                  <td class="py-2 pr-3 font-mono text-xs">{{ row.code }}</td>
+                  <td class="max-w-56 truncate py-2 pr-3" :title="row.name ?? ''">{{ row.name }}</td>
+                  <td class="py-2 pr-3 text-xs text-white/60">{{ row.mc_version }} <span class="capitalize">{{ row.loader }}</span></td>
+                  <td class="py-2 pr-3 text-right font-mono text-xs">{{ row.mods }}</td>
+                  <td class="py-2 pr-3 text-right font-mono text-xs">{{ bytes(row.size) }}</td>
+                  <td class="py-2 pr-3 text-right font-mono text-xs">{{ row.downloads }}</td>
+                  <td class="py-2 text-right font-mono text-xs text-white/50">{{ expiryLabel(row.expires) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </UCard>
       </div>
     </div>
