@@ -6,6 +6,10 @@ import { ensureSchema } from '../utils/schema'
 import { importLegacySqlite } from '../utils/legacy-sqlite'
 
 export default defineNitroPlugin(async () => {
+  // Prerendering boots this server inside `docker build`, where the database
+  // hostname does not resolve. Nothing to migrate at build time anyway.
+  if (import.meta.prerender) return
+
   try {
     const { runMigrations } = await getMigrations(useAuth().options)
     await runMigrations()

@@ -26,6 +26,16 @@ export default defineNuxtConfig({
     },
   },
 
+  // The fonts are loaded from Google with a <link> in `app.head` below. @nuxt/ui
+  // also pulls in @nuxt/fonts, which would download and self-host the same
+  // families during the build — a network call that has already broken a deploy
+  // when Google rotated a file URL and the cached one started returning 404.
+  fonts: {
+    providers: {
+      google: false,
+    },
+  },
+
   css: ['~/assets/css/main.css'],
   modules: [
     '@nuxt/image',

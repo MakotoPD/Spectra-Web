@@ -1,0 +1,33 @@
+# Without this, `COPY . .` bakes secrets and stale state into the image.
+#
+# `.env` is the important one: every layer of a published image is readable by
+# anyone who can pull it, so the database password, R2 keys and admin token
+# would travel with it. The build gets its configuration from the environment
+# at run time, never from a file inside the image.
+
+.env
+.env.*
+!.env.example
+
+# Local databases — the old SQLite files, and anything a dev run wrote.
+data
+*.db
+*.db-shm
+*.db-wal
+
+# Build output and caches. `.data` holds @nuxt/fonts' download cache, whose
+# Google Fonts URLs go stale and then 404 the build inside the container.
+.data
+.nuxt
+.nitro
+.cache
+.output
+dist
+node_modules
+
+# Not needed to build, and `.git` is the largest thing in the context.
+.git
+.github
+.vscode
+.idea
+*.log
