@@ -35,6 +35,38 @@ export function findUser(query: string) {
   )
 }
 
+/**
+ * People whose Spectra name or in-game name starts with what is being typed,
+ * with their relationship to the searcher so the UI can say "already friends"
+ * instead of offering a duplicate request.
+ *
+ * Deliberately no e-mail matching: a partial-match search over addresses turns
+ * this into a way to ask "is this person registered?" for any address anyone
+ * cares to try. Adding by full e-mail still works — that is someone typing an
+ * address they already know, which is a different thing.
+ */
+export function searchUsers(query: string, meId: string) {
+  const q1 = query.trim().toLowerCase()
+  if (q1.length < 2) return Promise.resolve([])
+
+  return q<PublicUser & { relation: 'friend' | 'pending' | null }>(
+    `SELECT ${PUBLIC_COLUMNS.split(', ').map(c => `u.${c}`).join(', ')},
+            CASE f.status WHEN 'accepted' THEN 'friend' WHEN 'pending' THEN 'pending' ELSE NULL END AS relation
+     FROM "user" u
+     LEFT JOIN friendship f
+       ON (f.requester_id = u.id AND f.addressee_id = $2)
+       OR (f.addressee_id = u.id AND f.requester_id = $2)
+     WHERE u.id <> $2
+       AND (lower(u.username) LIKE $1 || '%' OR lower(u."mcUsername") LIKE $1 || '%')
+       AND coalesce(f.status, '') <> 'blocked'
+     -- Exact hits first, so typing a full name puts it at the top.
+     ORDER BY (lower(u.username) = $1 OR lower(u."mcUsername") = $1) DESC,
+              lower(coalesce(u.username, u."mcUsername"))
+     LIMIT 8`,
+    [q1, meId],
+  )
+}
+
 export function getUser(id: string) {
   return one<PublicUser>(`SELECT ${PUBLIC_COLUMNS} FROM "user" WHERE id = $1`, [id])
 }

@@ -6,9 +6,12 @@ const MAX_PENDING_OUT = 25
 
 export default defineEventHandler(async (event) => {
   const me = await requireUser(event)
-  const { query } = await readBody<{ query?: string }>(event) ?? {}
+  const { query, userId } = await readBody<{ query?: string, userId?: string }>(event) ?? {}
 
-  const target = await findUser(String(query ?? ''))
+  // Picked from the search list: no ambiguity about who this is meant for.
+  const target = userId
+    ? await getUser(String(userId))
+    : await findUser(String(query ?? ''))
   // Same answer whether or not the account exists — otherwise this endpoint
   // turns into "is this e-mail registered with Spectra?".
   if (!target || target.id === me.id) {

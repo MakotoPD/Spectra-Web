@@ -78,6 +78,40 @@ await call(`/friends/${inbox.incoming[0].id}`, { token: b, method: 'PATCH', body
 assert.equal((await call('/friends', { token: a })).friends.length, 1)
 console.log('✓ friend request → accept')
 
+// --- typing a name suggests people, and the request goes to the one picked ---
+const found = await call('/users', { token: a, query: { q: `bob${rnd}`.slice(0, 5) } })
+const bob = found.users.find(u => u.username === `bob${rnd}`)
+assert.ok(bob, 'a prefix of the username must find them')
+assert.equal(bob.relation, 'friend', 'the list must say they are already a friend')
+// Nobody is offered themselves, and two characters is the floor.
+assert.ok(!found.users.some(u => u.username === `alice${rnd}`), 'must not offer yourself')
+assert.equal((await call('/users', { token: a, query: { q: 'b' } })).users.length, 0, 'one letter is not a search')
+// E-mails are not searchable: that would answer "is this address registered?".
+assert.equal((await call('/users', { token: a, query: { q: `bob-${rnd}@exam` } })).users.length, 0)
+console.log('✓ friend search suggests people without leaking addresses')
+
+const carol = await signup('carol')
+const carolRow = (await call('/users', { token: a, query: { q: `carol${rnd}`.slice(0, 6) } })).users[0]
+assert.ok(carolRow && carolRow.relation === null, 'a stranger shows with no relation')
+await call('/friends', { token: a, method: 'POST', body: { userId: carolRow.id } })
+const sentList = (await call('/friends', { token: a })).outgoing
+assert.equal(sentList.length, 1, 'the sent request is listed')
+assert.equal(sentList[0].user.id, carolRow.id, 'and it went to the person picked')
+await call(`/friends/${sentList[0].id}`, { token: a, method: 'DELETE' })
+assert.equal((await call('/friends', { token: a })).outgoing.length, 0, 'cancelling takes it back')
+// The three ways to name someone must all still land: address, spectra name,
+// and (once linked) the in-game name.
+await call('/friends', { token: a, method: 'POST', body: { query: `carol-${rnd}@example.com` } })
+const byMail = (await call('/friends', { token: a })).outgoing
+assert.equal(byMail.length, 1, 'a full e-mail address must still send a request')
+assert.equal(byMail[0].user.id, carolRow.id)
+await call(`/friends/${byMail[0].id}`, { token: a, method: 'DELETE' })
+
+await call('/friends', { token: a, method: 'POST', body: { query: `carol${rnd}` } })
+assert.equal((await call('/friends', { token: a })).outgoing.length, 1, 'an exact username must work too')
+await call(`/friends/${(await call('/friends', { token: a })).outgoing[0].id}`, { token: a, method: 'DELETE' })
+console.log('✓ invite by id, listed as sent, cancellable — and by e-mail or name')
+
 // --- share upload (owned) ---
 const pack = Buffer.from('PK\x03\x04 pretend this is a share pack')
 const up = await call('/share', {
