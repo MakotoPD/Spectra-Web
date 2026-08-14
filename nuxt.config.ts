@@ -3,10 +3,21 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
 
-  // Server-only secrets for the telemetry admin panel. Set via env in prod:
+  // Server-only secrets. Set via env in prod:
   //   ADMIN_TOKEN          — password for /admin
   //   SPECTRA_INGEST_KEY   — optional soft key the launcher sends (anti-spam)
   //   TELEMETRY_DB_PATH    — where the SQLite file lives (default ./data/telemetry.db)
+  //   SHARE_DB_PATH        — share codes + packs      (default ./data/shares.db)
+  //   APP_DB_PATH          — accounts, friends, notifications (default ./data/app.db)
+  //   BETTER_AUTH_SECRET   — session/token signing secret (required in prod)
+  //   RESEND_API_KEY, MAIL_FROM — transactional mail; without it verification
+  //                          and reset links are only printed to the server log
+  //   DISCORD_/GOOGLE_/GITHUB_/MICROSOFT_CLIENT_ID + _CLIENT_SECRET — OAuth,
+  //                          each provider appears on the sign-in page only
+  //                          once both of its values are set. Callback URL is
+  //                          <site>/api/auth/callback/<provider>.
+  //   R2_* — Cloudflare R2 bucket for avatar uploads (see .env.example)
+  //   TURNSTILE_SITE_KEY / TURNSTILE_SECRET_KEY — captcha on sign-up/-in/reset
   runtimeConfig: {
     adminToken: process.env.ADMIN_TOKEN || '',
     ingestKey: process.env.SPECTRA_INGEST_KEY || '',

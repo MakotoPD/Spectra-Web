@@ -8,7 +8,8 @@
     "loaders": "Loadery",
     "download": "Pobierz",
     "faq": "FAQ",
-    "github": "GitHub"
+    "github": "GitHub",
+    "account": "Konto"
   },
   "hero": {
     "badgeFree": "Darmowy i open source",
@@ -82,17 +83,26 @@
       "windows": {
         "name": "Windows",
         "sub": "Windows 10 / 11",
-        "builds": { "installer": "Instalator", "portable": "Przenośna" }
+        "builds": {
+          "installer": "Instalator",
+          "portable": "Przenośna"
+        }
       },
       "macos": {
         "name": "macOS",
         "sub": "macOS 11+",
-        "builds": { "arm": "Apple Silicon", "intel": "Intel" }
+        "builds": {
+          "arm": "Apple Silicon",
+          "intel": "Intel"
+        }
       },
       "linux": {
         "name": "Linux",
         "sub": "Większość dystrybucji",
-        "builds": { "universal": "Uniwersalna", "deb": "Debian / Ubuntu" }
+        "builds": {
+          "universal": "Uniwersalna",
+          "deb": "Debian / Ubuntu"
+        }
       }
     }
   },
@@ -166,5 +176,115 @@
     "notFoundTitle": "Ten kod już nie działa",
     "notFoundDesc": "Kody wygasają po 7 dniach. Poproś o nowy.",
     "backHome": "Wróć na stronę główną"
+  },
+  "auth": {
+    "title": "Logowanie — Spectra",
+    "signInTitle": "Zaloguj się",
+    "signUpTitle": "Załóż konto",
+    "subtitle": "Jedno konto dla listy znajomych i udostępnianych paczek.",
+    "email": "E-mail",
+    "password": "Hasło",
+    "username": "Nazwa użytkownika",
+    "signIn": "Zaloguj się",
+    "signUp": "Załóż konto",
+    "or": "albo",
+    "noAccount": "Nie masz konta? Załóż je",
+    "haveAccount": "Masz już konto?",
+    "forgot": "Nie pamiętasz hasła?",
+    "sendReset": "Wyślij link do resetu",
+    "backToSignIn": "Wróć do logowania",
+    "resetSent": "Jeśli konto z tym adresem istnieje, link do resetu właśnie leci.",
+    "resetTitle": "Ustaw nowe hasło",
+    "resetNoToken": "Ten link jest niepełny. Poproś o nowy na stronie logowania.",
+    "setPassword": "Zapisz hasło",
+    "checkInbox": "Sprawdź skrzynkę i potwierdź adres.",
+    "twoFactorHint": "Wpisz 6-cyfrowy kod z aplikacji uwierzytelniającej.",
+    "verify": "Potwierdź",
+    "genericError": "Coś poszło nie tak. Spróbuj ponownie.",
+    "badge": "Konto Spectra",
+    "pitchTitle": "Znajomi i paczki modów ",
+    "pitchTitleAccent": "o jedno kliknięcie.",
+    "pitch1": "Zbuduj listę znajomych i znajdujcie się po nazwie — bez dyktowania kodów.",
+    "pitch2": "Wyślij paczkę prosto do launchera znajomego; dostanie ją jako powiadomienie.",
+    "pitch3": "Zmieniłeś coś później? Wypchnij aktualizację do wszystkich, którzy ją mają.",
+    "twoFactorTitle": "Weryfikacja dwuetapowa",
+    "forgotTitle": "Nie pamiętasz hasła?",
+    "forgotHint": "Podaj adres, a wyślemy link do ustawienia nowego.",
+    "working": "Chwileczkę…",
+    "togglePassword": "Pokaż lub ukryj hasło",
+    "terms": "Zakładając konto zgadzasz się, że Twoja nazwa i awatar są widoczne dla innych graczy.",
+    "resetHint": "Wybierz coś, czego nie używasz nigdzie indziej.",
+    "resetDoneTitle": "Hasło zmienione",
+    "resetDone": "Możesz się już zalogować nowym hasłem.",
+    "passwordRule": "Minimum 8 znaków."
+  },
+  "account": {
+    "title": "Twoje konto",
+    "profile": "Profil",
+    "displayName": "Nazwa wyświetlana",
+    "avatarUrl": "Adres awatara",
+    "avatarHint": "Zostaw puste, żeby użyć kolorowej inicjały.",
+    "save": "Zapisz",
+    "saved": "Zapisano.",
+    "security": "Bezpieczeństwo",
+    "newEmail": "Nowy e-mail",
+    "changeEmail": "Zmień e-mail",
+    "emailPending": "Potwierdź zmianę linkiem, który wysłaliśmy na nowy adres.",
+    "currentPassword": "Obecne hasło",
+    "newPassword": "Nowe hasło",
+    "changePassword": "Zmień hasło",
+    "passwordChanged": "Hasło zmienione — pozostałe urządzenia zostały wylogowane.",
+    "twoFactor": "Weryfikacja dwuetapowa",
+    "twoFactorHint": "Przy każdym logowaniu poprosimy o kod z aplikacji uwierzytelniającej.",
+    "enable": "Włącz",
+    "disable": "Wyłącz",
+    "scanHint": "Zeskanuj kod aplikacją uwierzytelniającą i przepisz to, co pokaże.",
+    "backupCodes": "Kody zapasowe — schowaj je w bezpiecznym miejscu",
+    "twoFaOn": "Weryfikacja dwuetapowa jest włączona.",
+    "twoFaOff": "Weryfikacja dwuetapowa jest wyłączona.",
+    "connected": "Połączone konta",
+    "link": "Połącz",
+    "unlink": "Odłącz",
+    "unverified": "Twój adres e-mail nie jest jeszcze potwierdzony.",
+    "signOut": "Wyloguj się",
+    "upload": "Wgraj zdjęcie",
+    "uploading": "Wysyłanie…",
+    "avatarUploaded": "Awatar zmieniony.",
+    "avatarTooBig": "Wybierz obrazek mniejszy niż 8 MB.",
+    "avatarUnsupported": "Tylko PNG, JPEG lub WebP.",
+    "uploadHint": "Najlepiej kwadrat — zdjęcie jest zmniejszane do 256px jeszcze na Twoim komputerze.",
+    "verified": "Potwierdzony",
+    "on": "Włączona",
+    "off": "Wyłączona",
+    "linked": "Połączone"
+  },
+  "friends": {
+    "title": "Znajomi",
+    "add": "Dodaj",
+    "addPlaceholder": "Nazwa użytkownika lub e-mail",
+    "requestSent": "Zaproszenie wysłane.",
+    "incoming": "Czekają na Ciebie",
+    "outgoing": "Wysłane",
+    "accept": "Akceptuj",
+    "reject": "Odrzuć",
+    "empty": "Brak znajomych. Dodaj kogoś po nazwie, żeby dzielić się paczkami.",
+    "pending": "Oczekuje",
+    "remove": "Usuń ze znajomych"
+  },
+  "profile": {
+    "notFound": "Nie ma takiego gracza",
+    "metaDescription": "Profil {name} w Spectra Launcher.",
+    "joined": "Dołączył(a) {date}",
+    "friends": "Znajomi ({n})",
+    "noFriends": "Brak znajomych.",
+    "shared": "Dzieli się paczkami ze znajomymi przez Spectra Launcher."
+  },
+  "launcherAuth": {
+    "title": "Logowanie do launchera",
+    "hint": "Przeglądarka poprosi o zgodę na otwarcie Spectra Launcher.",
+    "openAgain": "Otwórz launcher",
+    "failed": "Nie udało się utworzyć tokenu. Spróbuj jeszcze raz z poziomu launchera.",
+    "signedInAs": "Zalogowany na tym koncie",
+    "closeHint": "Możesz zamknąć tę kartę, gdy launcher przejmie logowanie."
   }
 }

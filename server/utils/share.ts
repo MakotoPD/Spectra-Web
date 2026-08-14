@@ -46,9 +46,31 @@ export function useShareDb(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_shares_expires ON shares(expires);
     CREATE INDEX IF NOT EXISTS idx_shares_created ON shares(created);
   `)
+
+  // Added when accounts arrived. Codes made before that keep `owner_id` NULL
+  // and stay anonymous, link-only shares — exactly as they behaved before.
+  addColumn(handle, 'owner_id', 'TEXT')
+  addColumn(handle, 'instance_id', 'TEXT')
+  addColumn(handle, 'revision', 'INTEGER NOT NULL DEFAULT 1')
+  handle.exec('CREATE INDEX IF NOT EXISTS idx_shares_owner ON shares(owner_id, instance_id)')
+
   db = handle
   return db
 }
+
+/** `ALTER TABLE ... ADD COLUMN`, skipped if the column is already there. */
+function addColumn(handle: Database.Database, name: string, decl: string) {
+  const cols = handle.prepare('PRAGMA table_info(shares)').all() as { name: string }[]
+  if (!cols.some(c => c.name === name)) {
+    handle.exec(`ALTER TABLE shares ADD COLUMN ${name} ${decl}`)
+  }
+}
+
+/**
+ * A share that belongs to an account is not a throwaway link — friends keep it
+ * installed — so it gets a much longer life, refreshed on every push.
+ */
+export const OWNED_TTL_DAYS = 365
 
 export function expiryFor(now: number): number {
   return now + TTL_DAYS * 86_400_000
@@ -67,7 +89,11 @@ export function pruneShares(handle: Database.Database): number {
   const freed = handle
     .prepare('UPDATE shares SET blob = NULL WHERE expires < ? AND blob IS NOT NULL')
     .run(now).changes
-  handle.prepare('DELETE FROM shares WHERE created < ?').run(now - HISTORY_DAYS * 86_400_000)
+  // `expires < now` guards the history sweep too: an owned share stays alive far
+  // longer than the history window and must not be swept out from under it.
+  handle
+    .prepare('DELETE FROM shares WHERE created < ? AND expires < ?')
+    .run(now - HISTORY_DAYS * 86_400_000, now)
   return freed
 }
 

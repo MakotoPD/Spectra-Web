@@ -14,10 +14,12 @@ interface ShareRow {
   mods: number
   size: number
   downloads: number
+  owner_id: string | null
+  revision: number
   blob?: Buffer
 }
 
-export default defineEventHandler((event) => {
+export default defineEventHandler(async (event) => {
   setHeader(event, 'access-control-allow-origin', '*')
 
   const code = normalizeCode(getRouterParam(event, 'code'))
@@ -28,7 +30,7 @@ export default defineEventHandler((event) => {
   const db = useShareDb()
   const meta = getQuery(event).meta !== undefined
   const columns = meta
-    ? 'code, created, expires, name, mc_version, loader, mods, size, downloads'
+    ? 'code, created, expires, name, mc_version, loader, mods, size, downloads, owner_id, revision'
     : '*'
 
   const row = db
@@ -42,6 +44,18 @@ export default defineEventHandler((event) => {
   if (meta) return row
 
   db.prepare('UPDATE shares SET downloads = downloads + 1 WHERE code = ?').run(code)
+
+  // Pulling an account-owned pack while signed in subscribes you to its updates:
+  // the author's next push turns into a notification instead of a stale copy.
+  if (row.owner_id) {
+    const user = await optionalUser(event)
+    if (user && user.id !== row.owner_id) {
+      useAppDb().prepare(
+        `INSERT INTO share_recipient (code, user_id, sent, imported_revision) VALUES (?, ?, ?, ?)
+         ON CONFLICT(code, user_id) DO UPDATE SET imported_revision = excluded.imported_revision`,
+      ).run(code, user.id, Date.now(), row.revision)
+    }
+  }
 
   setHeader(event, 'content-type', 'application/zip')
   setHeader(event, 'content-disposition', `attachment; filename="spectra-${code}.zip"`)

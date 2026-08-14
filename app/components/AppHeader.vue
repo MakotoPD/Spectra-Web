@@ -1,6 +1,11 @@
 <script setup lang="ts">
 const { t } = useI18n()
 const { data: release } = useLauncherVersion()
+const localePath = useLocalePath()
+const session = useAuthSession()
+
+// Signed out this is a plain "sign in" link; signed in it turns into the avatar.
+const me = computed(() => session.value.data?.user as { username?: string, name?: string, image?: string } | undefined)
 
 const nav = computed(() => [
   { label: t('nav.features'), to: '#features' },
@@ -16,7 +21,7 @@ const nav = computed(() => [
     style="background:rgba(5,8,15,.55)"
   >
     <!-- Brand -->
-    <a href="#top" class="flex items-center gap-[11px] no-underline">
+    <a href="/#top" class="flex items-center gap-[11px] no-underline">
       <img
         src="/logo.png"
         alt="Spectra"
@@ -48,6 +53,20 @@ const nav = computed(() => [
     <!-- Actions -->
     <div class="flex items-center gap-2.5">
       <LangSwitcher />
+      <NuxtLink
+        :to="me ? localePath('/account') : localePath('/login')"
+        class="flex items-center gap-2 rounded-[10px] border border-white/[0.12] px-2.5 py-[7px] text-[14px] font-semibold no-underline transition-colors hover:border-[rgba(125,211,252,.5)]"
+        style="color:#dbe6f5;background:rgba(255,255,255,.03)"
+      >
+        <img v-if="me?.image" :src="me.image" alt="" class="size-[22px] rounded-full object-cover">
+        <span
+          v-else-if="me"
+          class="flex size-[22px] items-center justify-center rounded-full text-[11px] font-bold"
+          :style="`background:hsl(${initialsAvatar(me.username || me.name).hue} 65% 32%)`"
+        >{{ initialsAvatar(me.username || me.name).letter }}</span>
+        <UIcon v-else name="i-lucide-user" class="h-[17px] w-[17px]" />
+        <span class="hidden sm:inline">{{ me ? (me.username || me.name) : t('auth.signIn') }}</span>
+      </NuxtLink>
       <a
         :href="GITHUB_REPO"
         target="_blank"

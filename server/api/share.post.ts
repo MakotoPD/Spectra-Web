@@ -30,16 +30,52 @@ export default defineEventHandler(async (event) => {
   pruneShares(db)
 
   const now = Date.now()
-  const expires = expiryFor(now)
+  // Signed in? The share belongs to the account, can be pushed to friends and
+  // does not quietly expire in a week. Signed out, it is the old anonymous code.
+  const owner = await optionalUser(event)
+  const instanceId = clampStr(q.instance, 64) ?? null
+
+  if (owner && instanceId) {
+    const existing = db
+      .prepare('SELECT code, revision FROM shares WHERE owner_id = ? AND instance_id = ?')
+      .get(owner.id, instanceId) as { code: string, revision: number } | undefined
+
+    // Re-sharing the same instance is a *push*: same code, next revision, so
+    // everyone who already installed it keeps a working link.
+    if (existing) {
+      const revision = existing.revision + 1
+      db.prepare(
+        `UPDATE shares SET blob = @blob, size = @size, name = @name, mc_version = @mc_version,
+                loader = @loader, mods = @mods, revision = @revision, expires = @expires
+         WHERE code = @code`,
+      ).run({
+        code: existing.code,
+        blob: body,
+        size: body.length,
+        name: clampStr(q.name, 80) ?? 'Minecraft instance',
+        mc_version: clampStr(q.mc, 24) ?? null,
+        loader: clampStr(q.loader, 24) ?? null,
+        mods: Number(q.mods) || 0,
+        revision,
+        expires: now + OWNED_TTL_DAYS * 86_400_000,
+      })
+      notifyRecipients(existing.code, owner.id, clampStr(q.name, 80) ?? 'Minecraft instance', revision)
+      return { code: existing.code, url: `${cfg.public.siteUrl}/s/${existing.code}`, revision, pushed: true }
+    }
+  }
+
+  const expires = owner ? now + OWNED_TTL_DAYS * 86_400_000 : expiryFor(now)
   const code = newCode(db)
 
   db.prepare(
-    `INSERT INTO shares (code, created, expires, name, mc_version, loader, mods, size, blob)
-     VALUES (@code, @created, @expires, @name, @mc_version, @loader, @mods, @size, @blob)`,
+    `INSERT INTO shares (code, created, expires, name, mc_version, loader, mods, size, blob, owner_id, instance_id)
+     VALUES (@code, @created, @expires, @name, @mc_version, @loader, @mods, @size, @blob, @owner_id, @instance_id)`,
   ).run({
     code,
     created: now,
     expires,
+    owner_id: owner?.id ?? null,
+    instance_id: instanceId,
     name: clampStr(q.name, 80) ?? 'Minecraft instance',
     mc_version: clampStr(q.mc, 24) ?? null,
     loader: clampStr(q.loader, 24) ?? null,
@@ -52,5 +88,24 @@ export default defineEventHandler(async (event) => {
     code,
     url: `${cfg.public.siteUrl}/s/${code}`,
     expires,
+    revision: 1,
+    pushed: false,
   }
 })
+
+/** Tells everyone holding this code that a newer revision is up. */
+function notifyRecipients(code: string, ownerId: string, name: string, revision: number) {
+  const app = useAppDb()
+  const recipients = app
+    .prepare('SELECT user_id FROM share_recipient WHERE code = ?')
+    .all(code) as { user_id: string }[]
+  for (const r of recipients) {
+    notify(app, {
+      userId: r.user_id,
+      kind: 'instance_update',
+      actorId: ownerId,
+      shareCode: code,
+      data: { name, revision },
+    })
+  }
+}

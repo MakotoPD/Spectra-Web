@@ -8,7 +8,8 @@
     "dev": "nuxt dev",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
-    "postinstall": "nuxt prepare"
+    "postinstall": "nuxt prepare",
+    "check:social": "node test/social-check.mjs"
   },
   "dependencies": {
     "@nuxt/content": "3.14.0",
@@ -34,9 +35,12 @@
     "@tiptap/suggestion": "^3.27.1",
     "@tiptap/vue-3": "^3.27.1",
     "@unhead/vue": "^2.1.15",
+    "aws4fetch": "^1.0.20",
+    "better-auth": "^1.6.28",
     "better-sqlite3": "^12.11.1",
     "gsap": "^3.15.0",
     "nuxt": "^4.4.8",
+    "qrcode-generator": "^2.0.4",
     "tailwindcss": "^4.3.1",
     "typescript": "^5.9.3",
     "vue": "^3.5.38",

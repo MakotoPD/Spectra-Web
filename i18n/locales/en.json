@@ -8,7 +8,8 @@
     "loaders": "Loaders",
     "download": "Download",
     "faq": "FAQ",
-    "github": "GitHub"
+    "github": "GitHub",
+    "account": "Account"
   },
   "hero": {
     "badgeFree": "Free & open source",
@@ -82,17 +83,26 @@
       "windows": {
         "name": "Windows",
         "sub": "Windows 10 / 11",
-        "builds": { "installer": "Installer", "portable": "Portable" }
+        "builds": {
+          "installer": "Installer",
+          "portable": "Portable"
+        }
       },
       "macos": {
         "name": "macOS",
         "sub": "macOS 11+",
-        "builds": { "arm": "Apple Silicon", "intel": "Intel" }
+        "builds": {
+          "arm": "Apple Silicon",
+          "intel": "Intel"
+        }
       },
       "linux": {
         "name": "Linux",
         "sub": "Most distributions",
-        "builds": { "universal": "Universal", "deb": "Debian / Ubuntu" }
+        "builds": {
+          "universal": "Universal",
+          "deb": "Debian / Ubuntu"
+        }
       }
     }
   },
@@ -166,5 +176,115 @@
     "notFoundTitle": "This code no longer works",
     "notFoundDesc": "Share codes expire after 7 days. Ask for a fresh one.",
     "backHome": "Back to homepage"
+  },
+  "auth": {
+    "title": "Sign in — Spectra",
+    "signInTitle": "Sign in",
+    "signUpTitle": "Create an account",
+    "subtitle": "One account for your friends list and shared modpacks.",
+    "email": "E-mail",
+    "password": "Password",
+    "username": "Username",
+    "signIn": "Sign in",
+    "signUp": "Create account",
+    "or": "or",
+    "noAccount": "No account? Create one",
+    "haveAccount": "Already have an account?",
+    "forgot": "Forgot password?",
+    "sendReset": "Send reset link",
+    "backToSignIn": "Back to sign in",
+    "resetSent": "If that address has an account, a reset link is on its way.",
+    "resetTitle": "Set a new password",
+    "resetNoToken": "This link is incomplete. Request a new one from the sign-in page.",
+    "setPassword": "Save password",
+    "checkInbox": "Check your inbox to confirm your address.",
+    "twoFactorHint": "Enter the 6-digit code from your authenticator app.",
+    "verify": "Verify",
+    "genericError": "Something went wrong. Try again.",
+    "badge": "Spectra account",
+    "pitchTitle": "Your friends, your modpacks, ",
+    "pitchTitleAccent": "one click away.",
+    "pitch1": "Build a friends list and find each other by username — no codes to read out loud.",
+    "pitch2": "Send a modpack straight into a friend’s launcher; it lands as a notification.",
+    "pitch3": "Change something later and push the update to everyone who installed it.",
+    "twoFactorTitle": "Two-factor check",
+    "forgotTitle": "Forgot your password?",
+    "forgotHint": "Enter your address and we will send you a link to set a new one.",
+    "working": "Working…",
+    "togglePassword": "Show or hide the password",
+    "terms": "By creating an account you agree that your username and avatar are visible to other players.",
+    "resetHint": "Pick something you have not used anywhere else.",
+    "resetDoneTitle": "Password changed",
+    "resetDone": "You can sign in with your new password now.",
+    "passwordRule": "At least 8 characters."
+  },
+  "account": {
+    "title": "Your account",
+    "profile": "Profile",
+    "displayName": "Display name",
+    "avatarUrl": "Avatar URL",
+    "avatarHint": "Leave empty to use the coloured initial.",
+    "save": "Save",
+    "saved": "Saved.",
+    "security": "Security",
+    "newEmail": "New e-mail",
+    "changeEmail": "Change e-mail",
+    "emailPending": "Confirm the change from the link we sent to the new address.",
+    "currentPassword": "Current password",
+    "newPassword": "New password",
+    "changePassword": "Change password",
+    "passwordChanged": "Password changed — other devices were signed out.",
+    "twoFactor": "Two-factor authentication",
+    "twoFactorHint": "Ask for a code from your authenticator app at every sign-in.",
+    "enable": "Enable",
+    "disable": "Disable",
+    "scanHint": "Scan this with your authenticator app, then type the code it shows.",
+    "backupCodes": "Backup codes — store them somewhere safe",
+    "twoFaOn": "Two-factor authentication is on.",
+    "twoFaOff": "Two-factor authentication is off.",
+    "connected": "Connected accounts",
+    "link": "Connect",
+    "unlink": "Disconnect",
+    "unverified": "Your e-mail address is not confirmed yet.",
+    "signOut": "Sign out",
+    "upload": "Upload picture",
+    "uploading": "Uploading…",
+    "avatarUploaded": "Avatar updated.",
+    "avatarTooBig": "Pick an image under 8 MB.",
+    "avatarUnsupported": "PNG, JPEG or WebP only.",
+    "uploadHint": "Square works best — the picture is scaled down to 256px before it leaves your computer.",
+    "verified": "Verified",
+    "on": "On",
+    "off": "Off",
+    "linked": "Connected"
+  },
+  "friends": {
+    "title": "Friends",
+    "add": "Add",
+    "addPlaceholder": "Username or e-mail",
+    "requestSent": "Request sent.",
+    "incoming": "Waiting for you",
+    "outgoing": "Sent",
+    "accept": "Accept",
+    "reject": "Reject",
+    "empty": "No friends yet. Add someone by username to share modpacks with them.",
+    "pending": "Pending",
+    "remove": "Remove friend"
+  },
+  "profile": {
+    "notFound": "No such player",
+    "metaDescription": "Spectra Launcher profile of {name}.",
+    "joined": "Joined {date}",
+    "friends": "Friends ({n})",
+    "noFriends": "No friends yet.",
+    "shared": "Shares modpacks with friends through Spectra Launcher."
+  },
+  "launcherAuth": {
+    "title": "Signing in to the launcher",
+    "hint": "Your browser will ask for permission to open Spectra Launcher.",
+    "openAgain": "Open the launcher",
+    "failed": "Could not create a launcher token. Try again from the launcher.",
+    "signedInAs": "Signed in as this account",
+    "closeHint": "You can close this tab once the launcher takes over."
   }
 }
