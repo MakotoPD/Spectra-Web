@@ -22,3 +22,6 @@ logs
 .env
 .env.*
 !.env.example
+
+# Local databases (telemetry, share packs, accounts) — never in git
+data
