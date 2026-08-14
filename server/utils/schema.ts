@@ -86,6 +86,14 @@ export async function ensureSchema() {
     CREATE INDEX IF NOT EXISTS idx_events_install ON events(install_id);
   `)
 
+  // One Minecraft profile belongs to one account. better-auth creates the
+  // columns (see `additionalFields`); the uniqueness is ours to enforce, and it
+  // is what stops two people claiming the same name.
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS uniq_user_mc_uuid ON "user"("mcUuid")
+    WHERE "mcUuid" IS NOT NULL
+  `)
+
   // A notification has no natural id of its own, so re-importing the old SQLite
   // file used to duplicate every row. Two notifications for the same person, of
   // the same kind, in the same millisecond are the same notification — this is

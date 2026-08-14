@@ -121,6 +121,19 @@ mine = await call('/shares', { token: a })
 assert.equal(mine.shares[0].recipients[0].outdated, true)
 console.log('✓ push update → notification + outdated recipient')
 
+// --- the minecraft link is only as good as mojang's answer ---
+await assert.rejects(
+  () => call('/me/minecraft', { token: a, method: 'POST', body: { token: 'not-a-real-session' } }),
+  /401/,
+  'an invented token must not link a profile',
+)
+await assert.rejects(
+  () => call('/me/minecraft', { token: a, method: 'POST', body: {} }),
+  /400/,
+  'no token, no link',
+)
+console.log('✓ minecraft nick cannot be claimed without a real session')
+
 // --- the R2 pack flow: signed URL -> PUT -> complete ---
 const one = async (sql, params) => (await db.query(sql, params)).rows[0]
 const bigPack = Buffer.alloc(3 * 1024 * 1024, 7) // 3 MB of nothing in particular

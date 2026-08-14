@@ -199,6 +199,15 @@ export function useAuth() {
         }))
       },
     },
+    user: {
+      additionalFields: {
+        // The Minecraft profile behind this account. `input: false` matters:
+        // these may only ever be written by the verified path in
+        // `api/me/minecraft.post.ts`, never by a client update.
+        mcUuid: { type: 'string', required: false, input: false },
+        mcUsername: { type: 'string', required: false, input: false },
+      },
+    },
     socialProviders: socialProviders(),
     account: {
       // Signing in with Discord and later with Google on the same verified

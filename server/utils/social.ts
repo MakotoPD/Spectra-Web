@@ -16,15 +16,21 @@ export interface PublicUser {
   name: string | null
   username: string | null
   image: string | null
+  /** The name they play under, once the launcher has linked it. */
+  mcUsername?: string | null
 }
 
-const PUBLIC_COLUMNS = 'id, name, username, image'
+const PUBLIC_COLUMNS = 'id, name, username, image, "mcUsername"'
 
 export function findUser(query: string) {
   const q1 = query.trim().toLowerCase()
   if (!q1) return Promise.resolve(undefined)
+  // In-game name included: for most people that is the name their friends know
+  // them by, and the one they will type.
   return one<PublicUser>(
-    `SELECT ${PUBLIC_COLUMNS} FROM "user" WHERE lower(username) = $1 OR lower(email) = $1 LIMIT 1`,
+    `SELECT ${PUBLIC_COLUMNS} FROM "user"
+     WHERE lower(username) = $1 OR lower(email) = $1 OR lower("mcUsername") = $1
+     LIMIT 1`,
     [q1],
   )
 }
@@ -39,7 +45,7 @@ export function getUser(id: string) {
  */
 export function friendsOf(userId: string) {
   return q<PublicUser & { friendshipId: number }>(
-    `SELECT u.id, u.name, u.username, u.image, f.id AS "friendshipId"
+    `SELECT u.id, u.name, u.username, u.image, u."mcUsername", f.id AS "friendshipId"
      FROM friendship f
      JOIN "user" u ON u.id = CASE WHEN f.requester_id = $1 THEN f.addressee_id ELSE f.requester_id END
      WHERE f.status = 'accepted' AND (f.requester_id = $1 OR f.addressee_id = $1)
@@ -52,7 +58,7 @@ export function friendsOf(userId: string) {
 export async function pendingFor(userId: string) {
   const rows = await q<any>(
     `SELECT f.id, f.requester_id, f.addressee_id, f.created,
-            u.id AS u_id, u.name, u.username, u.image
+            u.id AS u_id, u.name, u.username, u.image, u."mcUsername"
      FROM friendship f
      JOIN "user" u ON u.id = CASE WHEN f.requester_id = $1 THEN f.addressee_id ELSE f.requester_id END
      WHERE f.status = 'pending' AND (f.requester_id = $1 OR f.addressee_id = $1)
@@ -62,7 +68,7 @@ export async function pendingFor(userId: string) {
   const map = (r: any) => ({
     id: Number(r.id),
     created: Number(r.created),
-    user: { id: r.u_id, name: r.name, username: r.username, image: r.image } as PublicUser,
+    user: { id: r.u_id, name: r.name, username: r.username, image: r.image, mcUsername: r.mcUsername } as PublicUser,
   })
   return {
     incoming: rows.filter(r => r.addressee_id === userId).map(map),
