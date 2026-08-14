@@ -6,9 +6,7 @@ export default defineNuxtConfig({
   // Server-only secrets. Set via env in prod:
   //   ADMIN_TOKEN          — password for /admin
   //   SPECTRA_INGEST_KEY   — optional soft key the launcher sends (anti-spam)
-  //   TELEMETRY_DB_PATH    — where the SQLite file lives (default ./data/telemetry.db)
-  //   SHARE_DB_PATH        — share codes + packs      (default ./data/shares.db)
-  //   APP_DB_PATH          — accounts, friends, notifications (default ./data/app.db)
+  //   DATABASE_URL         — Postgres; every table lives there
   //   BETTER_AUTH_SECRET   — session/token signing secret (required in prod)
   //   RESEND_API_KEY, MAIL_FROM — transactional mail; without it verification
   //                          and reset links are only printed to the server log

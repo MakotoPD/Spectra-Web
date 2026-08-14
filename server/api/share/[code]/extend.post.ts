@@ -8,29 +8,28 @@ export default defineEventHandler(async (event) => {
   const me = await requireUser(event)
   const code = normalizeCode(getRouterParam(event, 'code'))
 
-  const db = useShareDb()
-  const row = db.prepare('SELECT owner_id, expires FROM shares WHERE code = ?')
-    .get(code) as { owner_id: string | null, expires: number } | undefined
+  const row = await one<{ owner_id: string | null, expires: string }>(
+    'SELECT owner_id, expires FROM shares WHERE code = $1', [code])
   if (!row || row.owner_id !== me.id) {
     throw createError({ statusCode: 404, statusMessage: 'no such share' })
   }
 
   const now = Date.now()
-  if (row.expires < now) {
+  const expires = Number(row.expires)
+  if (expires < now) {
     throw createError({ statusCode: 410, statusMessage: 'this code has already expired' })
   }
-  const left = row.expires - now
-  if (left > EXTEND_WINDOW_MS) {
+  if (expires - now > EXTEND_WINDOW_MS) {
     throw createError({
       statusCode: 409,
       statusMessage: `too early — you can extend in the last ${EXTEND_WINDOW_MS / 3_600_000} hours`,
     })
   }
 
-  const expires = expiryFor(now)
-  db.prepare('UPDATE shares SET expires = ? WHERE code = ?').run(expires, code)
+  const next = expiryFor(now)
+  await exec('UPDATE shares SET expires = $1 WHERE code = $2', [next, code])
   // Someone is here anyway, so this is a good moment to take out the rubbish.
-  await pruneShares(db)
+  await pruneShares()
 
-  return { code, expires }
+  return { code, expires: next }
 })

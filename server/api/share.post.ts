@@ -1,15 +1,10 @@
-// Upload endpoint for launcher share codes.
+// Upload route for launchers older than the presigned-PUT flow: the pack comes
+// in as a request body, and this server relays it into R2 rather than keeping
+// it. Capped at what Cloudflare will pass through — current launchers ask
+// `/api/share/upload-url` instead and are not limited by it.
 //
-// Body: the raw `.zip` share pack (Content-Type: application/zip). Metadata for
-// the landing page comes from the query string so the server never has to open
-// the archive: ?name=&mc=&loader=&mods=
-//
-// Called from the launcher's Rust side (reqwest), so there is no CORS dance.
-//
-// Kept for launchers older than the R2 flow: the pack travels as a request body
-// and lands in SQLite as a BLOB. Current launchers ask `/api/share/upload-url`
-// for a presigned PUT and send the file straight to the bucket, which is the
-// only way past Cloudflare's 100 MB body limit.
+// Metadata for the landing page comes from the query string so the server never
+// has to open the archive: ?name=&mc=&loader=&mods=&instance=
 
 export default defineEventHandler(async (event) => {
   const cfg = useRuntimeConfig()
@@ -32,93 +27,72 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const q = getQuery(event)
-  const db = useShareDb()
-  await pruneShares(db)
+  const r2 = useR2()
+  if (!r2) throw createError({ statusCode: 501, statusMessage: 'pack storage is not configured' })
+
+  const q1 = getQuery(event)
+  await pruneShares()
 
   const now = Date.now()
-  // Signed in? The share belongs to the account, can be pushed to friends and
-  // does not quietly expire in a week. Signed out, it is the old anonymous code.
   const owner = await optionalUser(event)
-  const instanceId = clampStr(q.instance, 64) ?? null
-
-  if (owner && instanceId) {
-    const existing = db
-      .prepare('SELECT code, revision FROM shares WHERE owner_id = ? AND instance_id = ?')
-      .get(owner.id, instanceId) as { code: string, revision: number } | undefined
-
-    // Re-sharing the same instance is a *push*: same code, next revision, so
-    // everyone who already installed it keeps a working link.
-    if (existing) {
-      const revision = existing.revision + 1
-      db.prepare(
-        `UPDATE shares SET blob = @blob, size = @size, name = @name, mc_version = @mc_version,
-                loader = @loader, mods = @mods, revision = @revision, expires = @expires
-         WHERE code = @code`,
-      ).run({
-        code: existing.code,
-        blob: body,
-        size: body.length,
-        name: clampStr(q.name, 80) ?? 'Minecraft instance',
-        mc_version: clampStr(q.mc, 24) ?? null,
-        loader: clampStr(q.loader, 24) ?? null,
-        mods: Number(q.mods) || 0,
-        revision,
-        expires: expiryFor(now),
-      })
-      notifyRecipients(existing.code, owner.id, clampStr(q.name, 80) ?? 'Minecraft instance', revision)
-      return {
-        code: existing.code,
-        url: `${cfg.public.siteUrl}/s/${existing.code}`,
-        expires: expiryFor(now),
-        revision,
-        pushed: true,
-      }
-    }
+  const instanceId = clampStr(q1.instance, 64) ?? null
+  const meta = {
+    name: clampStr(q1.name, 80) ?? 'Minecraft instance',
+    mc_version: clampStr(q1.mc, 24) ?? null,
+    loader: clampStr(q1.loader, 24) ?? null,
+    mods: Number(q1.mods) || 0,
   }
 
-  const expires = expiryFor(now)
-  const code = newCode(db)
+  const existing = owner && instanceId
+    ? await one<{ code: string, revision: number, object_key: string | null }>(
+      'SELECT code, revision, object_key FROM shares WHERE owner_id = $1 AND instance_id = $2',
+      [owner.id, instanceId],
+    )
+    : undefined
 
-  db.prepare(
-    `INSERT INTO shares (code, created, expires, name, mc_version, loader, mods, size, blob, owner_id, instance_id)
-     VALUES (@code, @created, @expires, @name, @mc_version, @loader, @mods, @size, @blob, @owner_id, @instance_id)`,
-  ).run({
-    code,
-    created: now,
-    expires,
-    owner_id: owner?.id ?? null,
-    instance_id: instanceId,
-    name: clampStr(q.name, 80) ?? 'Minecraft instance',
-    mc_version: clampStr(q.mc, 24) ?? null,
-    loader: clampStr(q.loader, 24) ?? null,
-    mods: Number(q.mods) || 0,
-    size: body.length,
-    blob: body,
-  })
+  // Re-sharing the same instance is a *push*: same code, next revision, so
+  // everyone who already installed it keeps a working link.
+  const code = existing?.code ?? await newCode()
+  const revision = existing ? existing.revision + 1 : 1
+  const key = packKey(code, revision)
+  const expires = expiryFor(now)
+
+  await r2Put(r2, key, body, 'application/zip')
+
+  if (existing) {
+    await exec(
+      `UPDATE shares SET name = $1, mc_version = $2, loader = $3, mods = $4, size = $5,
+              object_key = $6, revision = $7, expires = $8, uploaded = TRUE WHERE code = $9`,
+      [meta.name, meta.mc_version, meta.loader, meta.mods, body.length, key, revision, expires, code],
+    )
+    if (existing.object_key && existing.object_key !== key) await r2Delete(r2, existing.object_key)
+
+    const recipients = await q<{ user_id: string }>(
+      'SELECT user_id FROM share_recipient WHERE code = $1', [code])
+    for (const r of recipients) {
+      await notify({
+        userId: r.user_id,
+        kind: 'instance_update',
+        actorId: owner!.id,
+        shareCode: code,
+        data: { name: meta.name, revision },
+      })
+    }
+  } else {
+    await exec(
+      `INSERT INTO shares (code, created, expires, name, mc_version, loader, mods, size,
+                           owner_id, instance_id, revision, uploaded, object_key)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 1, TRUE, $11)`,
+      [code, now, expires, meta.name, meta.mc_version, meta.loader, meta.mods, body.length,
+        owner?.id ?? null, instanceId, key],
+    )
+  }
 
   return {
     code,
     url: `${cfg.public.siteUrl}/s/${code}`,
     expires,
-    revision: 1,
-    pushed: false,
+    revision,
+    pushed: !!existing,
   }
 })
-
-/** Tells everyone holding this code that a newer revision is up. */
-function notifyRecipients(code: string, ownerId: string, name: string, revision: number) {
-  const app = useAppDb()
-  const recipients = app
-    .prepare('SELECT user_id FROM share_recipient WHERE code = ?')
-    .all(code) as { user_id: string }[]
-  for (const r of recipients) {
-    notify(app, {
-      userId: r.user_id,
-      kind: 'instance_update',
-      actorId: ownerId,
-      shareCode: code,
-      data: { name, revision },
-    })
-  }
-}

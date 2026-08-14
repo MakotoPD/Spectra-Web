@@ -9,30 +9,31 @@ export default defineEventHandler(async (event) => {
   const code = normalizeCode(getRouterParam(event, 'code'))
   const { userIds } = await readBody<{ userIds?: string[] }>(event) ?? {}
 
-  const share = useShareDb()
-    .prepare('SELECT code, name, owner_id, revision FROM shares WHERE code = ? AND expires > ?')
-    .get(code, Date.now()) as { code: string, name: string | null, owner_id: string | null, revision: number } | undefined
+  const share = await one<{ code: string, name: string | null, owner_id: string | null, revision: number }>(
+    'SELECT code, name, owner_id, revision FROM shares WHERE code = $1 AND expires > $2',
+    [code, Date.now()],
+  )
   if (!share || share.owner_id !== me.id) {
     throw createError({ statusCode: 404, statusMessage: 'no such share' })
   }
 
-  const db = useAppDb()
-  const targets = (userIds ?? []).slice(0, 50).filter(id => typeof id === 'string' && areFriends(db, me.id, id))
-
-  const insert = db.prepare(
-    `INSERT INTO share_recipient (code, user_id, sent) VALUES (?, ?, ?)
-     ON CONFLICT(code, user_id) DO UPDATE SET sent = excluded.sent`,
-  )
-  for (const userId of targets) {
-    insert.run(code, userId, Date.now())
-    notify(db, {
+  let sent = 0
+  for (const userId of (userIds ?? []).slice(0, 50)) {
+    if (typeof userId !== 'string' || !(await areFriends(me.id, userId))) continue
+    await exec(
+      `INSERT INTO share_recipient (code, user_id, sent) VALUES ($1, $2, $3)
+       ON CONFLICT (code, user_id) DO UPDATE SET sent = EXCLUDED.sent`,
+      [code, userId, Date.now()],
+    )
+    await notify({
       userId,
       kind: 'instance_invite',
       actorId: me.id,
       shareCode: code,
       data: { name: share.name, revision: share.revision },
     })
+    sent++
   }
 
-  return { sent: targets.length }
+  return { sent }
 })

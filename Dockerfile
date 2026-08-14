@@ -15,17 +15,6 @@ COPY . .
 
 RUN pnpm build
 
-# Nitro copies the better-sqlite3 JS into .output but NOT its compiled native
-# addon (.node), so `bindings` can't find it at runtime. Locate the binary that
-# was compiled in this stage (pnpm hides it under node_modules/.pnpm/...) and
-# drop it into the server output where bindings looks for it.
-RUN set -e; \
-    BIN="$(find /app/node_modules -name better_sqlite3.node -path '*better-sqlite3*' | head -n1)"; \
-    test -n "$BIN"; \
-    mkdir -p .output/server/node_modules/better-sqlite3/build/Release; \
-    cp "$BIN" .output/server/node_modules/better-sqlite3/build/Release/better_sqlite3.node; \
-    echo "embedded $BIN"
-
 # Stage 2: Production image
 FROM node:22-alpine AS production
 
@@ -36,6 +25,10 @@ COPY --from=builder /app/.output ./.output
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=3000
+# Mount the old SQLite volume here on the first deploy: the server copies those
+# rows into Postgres on boot (server/utils/legacy-sqlite.ts) and says so in the
+# log. Once they are across, unmount it — every later boot is a no-op.
+ENV LEGACY_SQLITE_DIR=/app/data
 
 EXPOSE 3000
 

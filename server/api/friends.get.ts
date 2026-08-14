@@ -3,6 +3,6 @@
 
 export default defineEventHandler(async (event) => {
   const me = await requireUser(event)
-  const db = useAppDb()
-  return { friends: friendsOf(db, me.id), ...pendingFor(db, me.id) }
+  const [friends, pending] = await Promise.all([friendsOf(me.id), pendingFor(me.id)])
+  return { friends, ...pending }
 })

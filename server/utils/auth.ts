@@ -2,48 +2,20 @@
 // off. Everything auth-shaped (passwords, sessions, OAuth, TOTP, reset mails)
 // is better-auth's job; we only wire it to SQLite and tell it how to send mail.
 //
-// Own database file (`data/app.db`), separate from telemetry.db and shares.db:
-// those two are append-and-prune analytics stores, this one is durable user
-// data that must never be pruned.
-//
 // Env:
+//   DATABASE_URL         — Postgres, shared with everything else on the server
 //   BETTER_AUTH_SECRET   — signing secret (required in prod)
-//   APP_DB_PATH          — default ./data/app.db
 //   RESEND_API_KEY       — optional; without it verification/reset mails are
 //                          only logged, and e-mail verification is not enforced
 //   <PROVIDER>_CLIENT_ID / _CLIENT_SECRET for discord, google, github, microsoft
 
 import type { H3Event } from 'h3'
-import Database from 'better-sqlite3'
-import { mkdirSync } from 'node:fs'
-import { dirname } from 'node:path'
 import { betterAuth } from 'better-auth'
 import { bearer, captcha, oneTimeToken, twoFactor, username } from 'better-auth/plugins'
 
+import { usePool } from './db'
+
 let auth: ReturnType<typeof betterAuth> | null = null
-let appDb: Database.Database | null = null
-
-/** The raw handle to `app.db` — shared with the friends/notification tables. */
-export function useAppDb(): Database.Database {
-  if (appDb) return appDb
-  // Parked on globalThis, not just in the module: dev reloads this module on
-  // every edit, and a fresh handle per reload leaks the old one — enough of
-  // them and the native sqlite binding takes the process down with it.
-  const cache = globalThis as typeof globalThis & { __spectraAppDb?: Database.Database }
-  if (cache.__spectraAppDb) {
-    appDb = cache.__spectraAppDb
-    return appDb
-  }
-
-  const path = process.env.APP_DB_PATH || './data/app.db'
-  mkdirSync(dirname(path), { recursive: true })
-  const handle = new Database(path)
-  handle.pragma('journal_mode = WAL')
-  handle.pragma('foreign_keys = ON')
-  appDb = handle
-  cache.__spectraAppDb = handle
-  return appDb
-}
 
 /** Providers are only offered if their credentials are actually configured. */
 function socialProviders() {
@@ -191,7 +163,7 @@ export function useAuth() {
   const hasMail = !!process.env.RESEND_API_KEY
 
   auth = betterAuth({
-    database: useAppDb(),
+    database: usePool(),
     baseURL: process.env.NUXT_PUBLIC_SITE_URL
       || (import.meta.dev ? 'http://localhost:3000' : 'https://spectra.makoto.com.pl'),
     secret: process.env.BETTER_AUTH_SECRET,

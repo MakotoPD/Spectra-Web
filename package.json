@@ -37,9 +37,9 @@
     "@unhead/vue": "^2.1.15",
     "aws4fetch": "^1.0.20",
     "better-auth": "^1.6.28",
-    "better-sqlite3": "^12.11.1",
     "gsap": "^3.15.0",
     "nuxt": "^4.4.8",
+    "pg": "^8.23.0",
     "qrcode-generator": "^2.0.4",
     "tailwindcss": "^4.3.1",
     "typescript": "^5.9.3",
@@ -49,11 +49,10 @@
   "devDependencies": {
     "@iconify-json/lucide": "^1.2.114",
     "@iconify-json/simple-icons": "^1.2.87",
-    "@types/better-sqlite3": "^7.6.13"
+    "@types/pg": "^8.21.0"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
-      "better-sqlite3",
       "sharp"
     ]
   }

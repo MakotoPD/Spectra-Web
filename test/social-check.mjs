@@ -8,7 +8,7 @@
 //   pnpm check:social
 import assert from 'node:assert'
 import fs from 'node:fs'
-import Database from 'better-sqlite3'
+import pg from 'pg'
 
 // Read `.env` the way the server does, so the check needs no wrapper.
 for (const line of fs.readFileSync('.env', 'utf8').split('\n')) {
@@ -50,7 +50,7 @@ async function call(path, { token, method = 'GET', body, raw, rawType, query } =
 // Signing up returns no session while e-mail verification is enforced, and this
 // script has no inbox — so confirm the address straight in the database and sign
 // in normally. Everything after this point goes through the real API.
-const db = new Database(process.env.APP_DB_PATH || './data/app.db')
+const db = new pg.Pool({ connectionString: process.env.DATABASE_URL })
 
 async function signup(n) {
   const email = `${n}-${rnd}@example.com`
@@ -59,7 +59,7 @@ async function signup(n) {
     method: 'POST',
     body: { email, password, name: n, username: `${n}${rnd}` },
   })
-  db.prepare('UPDATE user SET emailVerified = 1 WHERE email = ?').run(email)
+  await db.query('UPDATE "user" SET "emailVerified" = TRUE WHERE email = $1', [email])
   const { token } = await call('/auth/sign-in/email', { method: 'POST', body: { email, password } })
   assert.ok(token, 'sign-in must return a bearer token')
   return token
@@ -122,7 +122,7 @@ assert.equal(mine.shares[0].recipients[0].outdated, true)
 console.log('✓ push update → notification + outdated recipient')
 
 // --- the R2 pack flow: signed URL -> PUT -> complete ---
-const shareDbEarly = new Database(process.env.SHARE_DB_PATH || './data/shares.db')
+const one = async (sql, params) => (await db.query(sql, params)).rows[0]
 const bigPack = Buffer.alloc(3 * 1024 * 1024, 7) // 3 MB of nothing in particular
 const ticket = await call('/share/upload-url', {
   token: a, method: 'POST',
@@ -146,7 +146,7 @@ assert.equal(early.status, 404, 'an unconfirmed upload must not be downloadable'
 const done = await call(`/share/${ticket.code}/complete`, { token: a, method: 'POST', body: { size: 10 } })
 assert.equal(done.revision, 1)
 assert.equal(done.pushed, false)
-const storedSize = shareDbEarly.prepare('SELECT size FROM shares WHERE code = ?').get(ticket.code).size
+const storedSize = Number((await one('SELECT size FROM shares WHERE code = $1', [ticket.code])).size)
 assert.equal(storedSize, bigPack.length, 'the recorded size must come from storage, not the client')
 
 // Two ways out, both landing in storage: a redirect for browsers, and a plain
@@ -177,27 +177,44 @@ assert.equal(pushed.pushed, true)
 console.log('✓ push writes a new revision object')
 
 // --- extending: refused early, allowed in the last 48 h ---
-const shareDb = shareDbEarly
 await assert.rejects(
   () => call(`/share/${ticket.code}/extend`, { token: a, method: 'POST' }),
   /409/,
   'a fresh code must not be extendable',
 )
-shareDb.prepare('UPDATE shares SET expires = ? WHERE code = ?').run(Date.now() + 24 * 3600_000, ticket.code)
+await db.query('UPDATE shares SET expires = $1 WHERE code = $2', [Date.now() + 24 * 3600_000, ticket.code])
 const extended = await call(`/share/${ticket.code}/extend`, { token: a, method: 'POST' })
 assert.ok(extended.expires > Date.now() + 6 * 86400_000, 'extending must give another week')
 console.log('✓ extend refused early, granted near the deadline')
 
+// --- the owner can kill a code by hand ---
+const doomed = await call('/share/upload-url', {
+  token: a, method: 'POST',
+  body: { size: 32, name: 'Doomed', instance: `doomed-${rnd}` },
+})
+await fetch(doomed.uploadUrl, { method: 'PUT', headers: { 'content-type': 'application/zip' }, body: Buffer.alloc(32) })
+await call(`/share/${doomed.code}/complete`, { token: a, method: 'POST' })
+const doomedUrl = (await call(`/share/${doomed.code}`, { token: a, query: { url: '1' } })).url
+
+await call(`/share/${doomed.code}`, { token: a, method: 'DELETE' })
+await assert.rejects(
+  () => call(`/share/${doomed.code}`, { token: a, query: { url: '1' } }),
+  /404/,
+  'a revoked code must stop resolving',
+)
+assert.equal((await fetch(doomedUrl)).status, 404, 'a revoked pack must be gone from storage')
+console.log('✓ owner can expire a code on the spot')
+
 // --- expiry removes the object from storage ---
-const key = shareDb.prepare('SELECT object_key FROM shares WHERE code = ?').get(ticket.code).object_key
+const key = (await one('SELECT object_key FROM shares WHERE code = $1', [ticket.code])).object_key
 assert.ok(key, 'the share should still have an object')
-shareDb.prepare('UPDATE shares SET expires = ? WHERE code = ?').run(Date.now() - 1000, ticket.code)
+await db.query('UPDATE shares SET expires = $1 WHERE code = $2', [Date.now() - 1000, ticket.code])
 // Any upload prunes; this one is unrelated to the code above.
 await call('/share/upload-url', {
   token: a, method: 'POST',
   body: { size: 512, name: 'Trigger prune', instance: `prune-${rnd}` },
 })
-const swept = shareDb.prepare('SELECT object_key FROM shares WHERE code = ?').get(ticket.code)
+const swept = await one('SELECT object_key FROM shares WHERE code = $1', [ticket.code])
 assert.equal(swept.object_key, null, 'an expired pack must be deleted from storage')
 const gone = await fetch(location)
 assert.equal(gone.status, 404, 'the object itself must be gone')
@@ -225,3 +242,5 @@ assert.ok(anon.expires < Date.now() + 8 * 86400000, 'anonymous codes keep the 7-
 console.log('✓ anonymous share unchanged')
 
 console.log('\nall good')
+
+await db.end()

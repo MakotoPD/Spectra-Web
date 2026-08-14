@@ -41,6 +41,6 @@ export default defineEventHandler(async (event) => {
   }
 
   const url = `${r2.publicUrl}/${key}?v=${Date.now()}`
-  useAppDb().prepare('UPDATE user SET image = ? WHERE id = ?').run(url, me.id)
+  await exec('UPDATE "user" SET image = $1 WHERE id = $2', [url, me.id])
   return { url }
 })

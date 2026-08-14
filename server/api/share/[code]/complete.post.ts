@@ -8,18 +8,18 @@ export default defineEventHandler(async (event) => {
   const me = await requireUser(event)
   const code = normalizeCode(getRouterParam(event, 'code'))
 
-  const db = useShareDb()
-  const row = db
-    .prepare('SELECT code, owner_id, revision, uploaded, object_key, pending_key, name FROM shares WHERE code = ?')
-    .get(code) as {
-      code: string
-      owner_id: string | null
-      revision: number
-      uploaded: number
-      object_key: string | null
-      pending_key: string | null
-      name: string | null
-    } | undefined
+  const row = await one<{
+    code: string
+    owner_id: string | null
+    revision: number
+    uploaded: boolean
+    object_key: string | null
+    pending_key: string | null
+    name: string | null
+  }>(
+    'SELECT code, owner_id, revision, uploaded, object_key, pending_key, name FROM shares WHERE code = $1',
+    [code],
+  )
 
   if (!row || row.owner_id !== me.id) {
     throw createError({ statusCode: 404, statusMessage: 'no such share' })
@@ -47,7 +47,7 @@ export default defineEventHandler(async (event) => {
   }
   if (stored > MAX_PACK_BYTES) {
     await r2Delete(r2, row.pending_key)
-    db.prepare('UPDATE shares SET pending_key = NULL, pending_at = NULL WHERE code = ?').run(code)
+    await exec('UPDATE shares SET pending_key = NULL, pending_at = NULL WHERE code = $1', [code])
     throw createError({
       statusCode: 413,
       statusMessage: `pack too large (${Math.round(stored / 1048576)} MB, max ${MAX_PACK_BYTES / 1073741824} GB)`,
@@ -56,28 +56,23 @@ export default defineEventHandler(async (event) => {
 
   const previous = row.object_key
   const now = Date.now()
-  db.prepare(
-    `UPDATE shares SET object_key = @key, pending_key = NULL, pending_at = NULL, uploaded = 1,
-            size = @size, revision = @revision, expires = @expires, blob = NULL
-     WHERE code = @code`,
-  ).run({
-    code,
-    key: row.pending_key,
-    size: stored,
-    revision,
+  const expires = expiryFor(now)
+  await exec(
+    `UPDATE shares SET object_key = $1, pending_key = NULL, pending_at = NULL, uploaded = TRUE,
+            size = $2, revision = $3, expires = $4
+     WHERE code = $5`,
     // A push restarts the week — the pack is current again.
-    expires: expiryFor(now),
-  })
+    [row.pending_key, stored, revision, expires, code],
+  )
 
   // The revision it replaced is nobody's download target now.
   if (previous && previous !== row.pending_key) await r2Delete(r2, previous)
 
   if (revision > 1) {
-    const app = useAppDb()
-    const recipients = app.prepare('SELECT user_id FROM share_recipient WHERE code = ?')
-      .all(code) as { user_id: string }[]
+    const recipients = await q<{ user_id: string }>(
+      'SELECT user_id FROM share_recipient WHERE code = $1', [code])
     for (const r of recipients) {
-      notify(app, {
+      await notify({
         userId: r.user_id,
         kind: 'instance_update',
         actorId: me.id,
@@ -87,5 +82,5 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  return { code, revision, expires: expiryFor(now), pushed: revision > 1 }
+  return { code, revision, expires, pushed: revision > 1 }
 })

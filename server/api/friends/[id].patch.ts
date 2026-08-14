@@ -9,20 +9,21 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'unknown action' })
   }
 
-  const db = useAppDb()
-  const row = db.prepare('SELECT * FROM friendship WHERE id = ? AND addressee_id = ?')
-    .get(id, me.id) as { id: number, requester_id: string, status: string } | undefined
+  const row = await one<{ id: number, requester_id: string, status: string }>(
+    'SELECT id, requester_id, status FROM friendship WHERE id = $1 AND addressee_id = $2',
+    [id, me.id],
+  )
   if (!row) throw createError({ statusCode: 404, statusMessage: 'no such request' })
 
   if (action === 'accept') {
-    db.prepare("UPDATE friendship SET status = 'accepted' WHERE id = ?").run(id)
-    notify(db, { userId: row.requester_id, kind: 'friend_accepted', actorId: me.id })
+    await exec("UPDATE friendship SET status = 'accepted' WHERE id = $1", [id])
+    await notify({ userId: row.requester_id, kind: 'friend_accepted', actorId: me.id })
     return { status: 'accepted' }
   }
   if (action === 'block') {
-    db.prepare("UPDATE friendship SET status = 'blocked' WHERE id = ?").run(id)
+    await exec("UPDATE friendship SET status = 'blocked' WHERE id = $1", [id])
     return { status: 'blocked' }
   }
-  db.prepare('DELETE FROM friendship WHERE id = ?').run(id)
+  await exec('DELETE FROM friendship WHERE id = $1', [id])
   return { status: 'rejected' }
 })

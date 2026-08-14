@@ -1,9 +1,9 @@
 // Step 1 of sharing a pack: hand the launcher a URL it can PUT the zip to.
 //
 // The pack never passes through this server. Cloudflare rejects request bodies
-// over 100 MB, and buffering a gigabyte in Node to write it into SQLite would be
-// wrong even if it didn't — so the bytes go straight to R2 under a signature
-// that is good for one object and one deadline.
+// over 100 MB, and buffering a gigabyte in Node would be wrong even if it
+// didn't — so the bytes go straight to R2 under a signature that is good for
+// one object and one deadline.
 //
 // Step 2 is `share/[code]/complete.post.ts`, which is what actually makes the
 // code resolve. An upload that never completes changes nothing.
@@ -42,14 +42,12 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const db = useShareDb()
-  await pruneShares(db)
+  await pruneShares()
 
   const now = Date.now()
   const instanceId = clampStr(body.instance, 64) ?? null
-  const name = clampStr(body.name, 80) ?? 'Minecraft instance'
   const meta = {
-    name,
+    name: clampStr(body.name, 80) ?? 'Minecraft instance',
     mc_version: clampStr(body.mc, 24) ?? null,
     loader: clampStr(body.loader, 24) ?? null,
     mods: Number(body.mods) || 0,
@@ -58,8 +56,10 @@ export default defineEventHandler(async (event) => {
   // Re-sharing the same instance keeps its code, so everyone who installed it
   // still has a working link. The revision is only bumped on completion.
   const existing = instanceId
-    ? db.prepare('SELECT code, revision, uploaded FROM shares WHERE owner_id = ? AND instance_id = ?')
-      .get(owner.id, instanceId) as { code: string, revision: number, uploaded: number } | undefined
+    ? await one<{ code: string, revision: number, uploaded: boolean }>(
+      'SELECT code, revision, uploaded FROM shares WHERE owner_id = $1 AND instance_id = $2',
+      [owner.id, instanceId],
+    )
     : undefined
 
   let code: string
@@ -69,27 +69,21 @@ export default defineEventHandler(async (event) => {
     code = existing.code
     // A first upload that never completed keeps its revision number.
     revision = existing.uploaded ? existing.revision + 1 : existing.revision
-    db.prepare(
-      `UPDATE shares SET name = @name, mc_version = @mc_version, loader = @loader, mods = @mods,
-              pending_key = @pending_key, pending_at = @now WHERE code = @code`,
-    ).run({ ...meta, code, pending_key: packKey(code, revision), now })
+    await exec(
+      `UPDATE shares SET name = $1, mc_version = $2, loader = $3, mods = $4,
+              pending_key = $5, pending_at = $6 WHERE code = $7`,
+      [meta.name, meta.mc_version, meta.loader, meta.mods, packKey(code, revision), now, code],
+    )
   } else {
-    code = newCode(db)
+    code = await newCode()
     revision = 1
-    db.prepare(
+    await exec(
       `INSERT INTO shares (code, created, expires, name, mc_version, loader, mods, size,
                            owner_id, instance_id, revision, uploaded, pending_key, pending_at)
-       VALUES (@code, @now, @expires, @name, @mc_version, @loader, @mods, 0,
-               @owner_id, @instance_id, 1, 0, @pending_key, @now)`,
-    ).run({
-      ...meta,
-      code,
-      now,
-      expires: expiryFor(now),
-      owner_id: owner.id,
-      instance_id: instanceId,
-      pending_key: packKey(code, revision),
-    })
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 0, $8, $9, 1, FALSE, $10, $2)`,
+      [code, now, expiryFor(now), meta.name, meta.mc_version, meta.loader, meta.mods,
+        owner.id, instanceId, packKey(code, revision)],
+    )
   }
 
   return {

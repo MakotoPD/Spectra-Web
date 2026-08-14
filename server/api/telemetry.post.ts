@@ -56,42 +56,36 @@ export default defineEventHandler(async (event) => {
   const now = Date.now()
   const day = dayKey(now)
 
-  const handle = useTelemetryDb()
-  const insert = handle.prepare(
-    `INSERT INTO events (ts, day, install_id, event, version, os, arch, locale, props)
-     VALUES (@ts, @day, @install_id, @event, @version, @os, @arch, @locale, @props)`,
-  )
+  // One statement for the whole batch: fewer round-trips than a row at a time,
+  // and the client is a game launcher on a home connection.
+  const values: unknown[] = []
+  const tuples: string[] = []
+  for (const e of list.slice(0, MAX_EVENTS)) {
+    const name = clampStr(e?.event, 32)
+    if (!name || !ALLOWED_EVENTS.has(name)) continue
 
-  let accepted = 0
-  const tx = handle.transaction((events: IncomingEvent[]) => {
-    for (const e of events.slice(0, MAX_EVENTS)) {
-      const name = clampStr(e?.event, 32)
-      if (!name || !ALLOWED_EVENTS.has(name)) continue
-
-      let props: string | null = null
-      if (e?.props && typeof e.props === 'object') {
-        const json = JSON.stringify(e.props)
-        if (json.length <= MAX_PROPS_BYTES) props = json
-      }
-
-      insert.run({
-        ts: now,
-        day,
-        install_id: installId,
-        event: name,
-        version,
-        os,
-        arch,
-        locale,
-        props,
-      })
-      accepted++
+    let props: string | null = null
+    if (e?.props && typeof e.props === 'object') {
+      const json = JSON.stringify(e.props)
+      if (json.length <= MAX_PROPS_BYTES) props = json
     }
-  })
-  tx(list)
 
-  // Occasionally trim old rows (no cron needed).
-  if (Math.random() < 0.02) pruneOld(handle)
+    const base = values.length
+    values.push(now, day, installId, name, version, os, arch, locale, props)
+    tuples.push(`($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, `
+      + `$${base + 6}, $${base + 7}, $${base + 8}, $${base + 9})`)
+  }
 
-  return { ok: true, accepted }
+  if (tuples.length) {
+    await exec(
+      `INSERT INTO events (ts, day, install_id, event, version, os, arch, locale, props)
+       VALUES ${tuples.join(', ')}`,
+      values,
+    )
+  }
+
+  // Trim old rows now and then rather than on a timer.
+  if (Math.random() < 0.02) await pruneOld()
+
+  return { ok: true, accepted: tuples.length }
 })
