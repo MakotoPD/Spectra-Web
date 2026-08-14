@@ -9,7 +9,7 @@
 // instead of leaving orphans behind; a `?v=` stamp on the stored URL busts any
 // cache that already has the previous one.
 
-import { AwsClient } from 'aws4fetch'
+import { r2Put } from '../../utils/r2'
 
 const MAX_BYTES = 2 * 1024 * 1024
 const EXTENSIONS: Record<string, string> = {
@@ -21,14 +21,8 @@ const EXTENSIONS: Record<string, string> = {
 export default defineEventHandler(async (event) => {
   const me = await requireUser(event)
 
-  const accountId = process.env.R2_ACCOUNT_ID
-  const accessKeyId = process.env.R2_ACCESS_KEY_ID
-  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY
-  const bucket = process.env.R2_BUCKET
-  const publicUrl = (process.env.R2_PUBLIC_URL || '').replace(/\/$/, '')
-  if (!accountId || !accessKeyId || !secretAccessKey || !bucket || !publicUrl) {
-    throw createError({ statusCode: 501, statusMessage: 'avatar uploads are not configured' })
-  }
+  const r2 = useR2()
+  if (!r2) throw createError({ statusCode: 501, statusMessage: 'avatar uploads are not configured' })
 
   const contentType = String(getHeader(event, 'content-type') || '').split(';')[0]!.trim()
   const ext = EXTENSIONS[contentType]
@@ -39,18 +33,14 @@ export default defineEventHandler(async (event) => {
   if (body.length > MAX_BYTES) throw createError({ statusCode: 413, statusMessage: 'image too large' })
 
   const key = `avatars/${me.id}.${ext}`
-  const client = new AwsClient({ accessKeyId, secretAccessKey, service: 's3', region: 'auto' })
-  const res = await client.fetch(`https://${accountId}.r2.cloudflarestorage.com/${bucket}/${key}`, {
-    method: 'PUT',
-    body,
-    headers: { 'content-type': contentType, 'cache-control': 'public, max-age=31536000, immutable' },
-  })
-  if (!res.ok) {
-    console.error('[avatar] R2 rejected the upload', res.status, await res.text())
+  try {
+    await r2Put(r2, key, body, contentType)
+  } catch (e) {
+    console.error('[avatar]', e)
     throw createError({ statusCode: 502, statusMessage: 'could not store the image' })
   }
 
-  const url = `${publicUrl}/${key}?v=${Date.now()}`
+  const url = `${r2.publicUrl}/${key}?v=${Date.now()}`
   useAppDb().prepare('UPDATE user SET image = ? WHERE id = ?').run(url, me.id)
   return { url }
 })

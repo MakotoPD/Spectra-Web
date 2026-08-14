@@ -16,6 +16,8 @@ interface ShareRow {
   downloads: number
   owner_id: string | null
   revision: number
+  object_key: string | null
+  uploaded: number
   blob?: Buffer
 }
 
@@ -30,11 +32,11 @@ export default defineEventHandler(async (event) => {
   const db = useShareDb()
   const meta = getQuery(event).meta !== undefined
   const columns = meta
-    ? 'code, created, expires, name, mc_version, loader, mods, size, downloads, owner_id, revision'
+    ? 'code, created, expires, name, mc_version, loader, mods, size, downloads, owner_id, revision, uploaded'
     : '*'
 
   const row = db
-    .prepare(`SELECT ${columns} FROM shares WHERE code = ? AND expires > ?`)
+    .prepare(`SELECT ${columns} FROM shares WHERE code = ? AND expires > ? AND uploaded = 1`)
     .get(code, Date.now()) as ShareRow | undefined
 
   if (!row) {
@@ -57,6 +59,27 @@ export default defineEventHandler(async (event) => {
     }
   }
 
+  // Packs live in R2. The bytes never pass through this server, so a gigabyte
+  // costs it nothing and Cloudflare's body limit never comes into it.
+  if (row.object_key) {
+    const r2 = useR2()
+    if (!r2) throw createError({ statusCode: 501, statusMessage: 'pack storage is not configured' })
+    const url = await r2SignedGet(r2, row.object_key)
+
+    // `?url=1` — for the launcher, which authenticates with a bearer token.
+    // Following a redirect into R2 would carry that header along, and S3 refuses
+    // a request that arrives with two different signatures. So it asks for the
+    // address and fetches the bytes unauthenticated.
+    if (getQuery(event).url !== undefined) return { url }
+
+    // Browsers (the /s/<code> page) just follow it.
+    return sendRedirect(event, url, 302)
+  }
+
+  // Codes made before R2 still carry their bytes in the database.
+  if (!row.blob) {
+    throw createError({ statusCode: 404, statusMessage: 'this pack is no longer stored' })
+  }
   setHeader(event, 'content-type', 'application/zip')
   setHeader(event, 'content-disposition', `attachment; filename="spectra-${code}.zip"`)
   return row.blob

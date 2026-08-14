@@ -16,8 +16,22 @@ let db: Database.Database | null = null
 /** How long a code stays redeemable. */
 export const TTL_DAYS = 7
 
-/** Hard cap on one uploaded pack. Manifests are tiny; this only stops abuse. */
-export const MAX_PACK_BYTES = 25 * 1024 * 1024
+/** Hard cap on one pack, uploaded straight to R2. */
+export const MAX_PACK_BYTES = 1024 * 1024 * 1024
+
+/**
+ * Cap for the older route that sends the pack *through* this server as a
+ * request body. Cloudflare proxies the site and rejects bodies over 100 MB
+ * before Nitro sees them, so anything larger has to go to R2 — which is what
+ * current launchers do (`/api/share/upload-url`).
+ */
+export const MAX_INLINE_BYTES = 100 * 1024 * 1024
+
+/**
+ * A code lasts a week. Its owner can push it out by another week from the
+ * launcher once it is nearly up — see `share/[code]/extend.post.ts`.
+ */
+export const EXTEND_WINDOW_MS = 48 * 60 * 60 * 1000
 
 /** Lazily opens (and migrates) the share database. */
 export function useShareDb(): Database.Database {
@@ -52,6 +66,15 @@ export function useShareDb(): Database.Database {
   addColumn(handle, 'owner_id', 'TEXT')
   addColumn(handle, 'instance_id', 'TEXT')
   addColumn(handle, 'revision', 'INTEGER NOT NULL DEFAULT 1')
+  // Packs live in R2 now; `blob` is only still read for codes made before that.
+  addColumn(handle, 'object_key', 'TEXT')
+  // 0 while a presigned upload is still in flight — the code resolves only once
+  // the launcher confirms the object actually landed.
+  addColumn(handle, 'uploaded', 'INTEGER NOT NULL DEFAULT 1')
+  // Where an in-flight upload is headed. Kept so an upload that never completes
+  // leaves a deletable object behind rather than an invisible one we pay for.
+  addColumn(handle, 'pending_key', 'TEXT')
+  addColumn(handle, 'pending_at', 'INTEGER')
   handle.exec('CREATE INDEX IF NOT EXISTS idx_shares_owner ON shares(owner_id, instance_id)')
 
   db = handle
@@ -66,12 +89,6 @@ function addColumn(handle: Database.Database, name: string, decl: string) {
   }
 }
 
-/**
- * A share that belongs to an account is not a throwaway link — friends keep it
- * installed — so it gets a much longer life, refreshed on every push.
- */
-export const OWNED_TTL_DAYS = 365
-
 export function expiryFor(now: number): number {
   return now + TTL_DAYS * 86_400_000
 }
@@ -80,17 +97,47 @@ export function expiryFor(now: number): number {
 const HISTORY_DAYS = 90
 
 /**
- * Frees expired codes. The heavy part — the blob — is dropped on expiry, but the
- * row itself lives on for a while so the admin dashboard has history to chart.
- * Called on upload; writes are rare, so no cron is needed.
+ * Frees expired codes: the R2 object is deleted, the legacy blob dropped. The
+ * (now weightless) row lives on for a while so the admin dashboard keeps its
+ * history. Called whenever someone uploads or extends — writes are rare enough
+ * that no cron is needed, and nothing costs storage in the meantime.
  */
-export function pruneShares(handle: Database.Database): number {
+export async function pruneShares(handle: Database.Database): Promise<number> {
   const now = Date.now()
-  const freed = handle
+
+  const stale = handle
+    .prepare('SELECT code, object_key FROM shares WHERE expires < ? AND object_key IS NOT NULL')
+    .all(now) as { code: string, object_key: string }[]
+
+  const r2 = stale.length ? useR2() : null
+  let freed = 0
+  for (const row of stale) {
+    // Only forget the key once the object is really gone, so a failed delete is
+    // retried on the next pass instead of leaking a paid-for object forever.
+    if (r2 && !(await r2Delete(r2, row.object_key))) continue
+    handle.prepare('UPDATE shares SET object_key = NULL WHERE code = ?').run(row.code)
+    freed++
+  }
+
+  freed += handle
     .prepare('UPDATE shares SET blob = NULL WHERE expires < ? AND blob IS NOT NULL')
     .run(now).changes
-  // `expires < now` guards the history sweep too: an owned share stays alive far
-  // longer than the history window and must not be swept out from under it.
+
+  // Uploads that were handed a URL and never confirmed. Past the signature's
+  // own lifetime nothing can complete them, so the object is just garbage.
+  const abandoned = handle
+    .prepare('SELECT code, pending_key FROM shares WHERE pending_key IS NOT NULL AND pending_at < ?')
+    .all(now - UPLOAD_URL_TTL * 1000) as { code: string, pending_key: string }[]
+  for (const row of abandoned) {
+    const r2b = useR2()
+    if (r2b && !(await r2Delete(r2b, row.pending_key))) continue
+    handle.prepare('UPDATE shares SET pending_key = NULL, pending_at = NULL WHERE code = ?')
+      .run(row.code)
+    freed++
+  }
+
+  // `expires < now` guards the history sweep too, so a live code is never swept
+  // out from under its holders just because it was created a long time ago.
   handle
     .prepare('DELETE FROM shares WHERE created < ? AND expires < ?')
     .run(now - HISTORY_DAYS * 86_400_000, now)
@@ -116,4 +163,12 @@ export function newCode(handle: Database.Database): string {
 /** Normalises user input ("spectra.../s/ab-cd12" or " abcd12 ") to a code. */
 export function normalizeCode(raw: unknown): string {
   return String(raw ?? '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(-CODE_LEN)
+}
+
+/**
+ * Where a pack lives in the bucket. Revision-stamped, so pushing an update
+ * never overwrites the copy someone is halfway through downloading.
+ */
+export function packKey(code: string, revision: number) {
+  return `packs/${code}/${revision}.zip`
 }

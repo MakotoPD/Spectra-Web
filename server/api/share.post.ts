@@ -5,6 +5,11 @@
 // the archive: ?name=&mc=&loader=&mods=
 //
 // Called from the launcher's Rust side (reqwest), so there is no CORS dance.
+//
+// Kept for launchers older than the R2 flow: the pack travels as a request body
+// and lands in SQLite as a BLOB. Current launchers ask `/api/share/upload-url`
+// for a presigned PUT and send the file straight to the bucket, which is the
+// only way past Cloudflare's 100 MB body limit.
 
 export default defineEventHandler(async (event) => {
   const cfg = useRuntimeConfig()
@@ -18,16 +23,18 @@ export default defineEventHandler(async (event) => {
   if (!body?.length) {
     throw createError({ statusCode: 400, statusMessage: 'empty body' })
   }
-  if (body.length > MAX_PACK_BYTES) {
+  if (body.length > MAX_INLINE_BYTES) {
     throw createError({
       statusCode: 413,
-      statusMessage: `pack too large (${Math.round(body.length / 1048576)} MB, max ${MAX_PACK_BYTES / 1048576} MB)`,
+      statusMessage: `pack too large (${Math.round(body.length / 1048576)} MB, max `
+        + `${MAX_INLINE_BYTES / 1048576} MB through this route — update the launcher `
+        + `to upload straight to storage)`,
     })
   }
 
   const q = getQuery(event)
   const db = useShareDb()
-  pruneShares(db)
+  await pruneShares(db)
 
   const now = Date.now()
   // Signed in? The share belongs to the account, can be pushed to friends and
@@ -57,20 +64,20 @@ export default defineEventHandler(async (event) => {
         loader: clampStr(q.loader, 24) ?? null,
         mods: Number(q.mods) || 0,
         revision,
-        expires: now + OWNED_TTL_DAYS * 86_400_000,
+        expires: expiryFor(now),
       })
       notifyRecipients(existing.code, owner.id, clampStr(q.name, 80) ?? 'Minecraft instance', revision)
       return {
         code: existing.code,
         url: `${cfg.public.siteUrl}/s/${existing.code}`,
-        expires: now + OWNED_TTL_DAYS * 86_400_000,
+        expires: expiryFor(now),
         revision,
         pushed: true,
       }
     }
   }
 
-  const expires = owner ? now + OWNED_TTL_DAYS * 86_400_000 : expiryFor(now)
+  const expires = expiryFor(now)
   const code = newCode(db)
 
   db.prepare(

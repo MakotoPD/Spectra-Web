@@ -4,8 +4,9 @@
 export default defineEventHandler(async (event) => {
   const me = await requireUser(event)
   const rows = useShareDb()
-    .prepare(`SELECT code, instance_id, name, mc_version, loader, mods, revision, created, expires, downloads
-              FROM shares WHERE owner_id = ? AND expires > ? ORDER BY created DESC`)
+    .prepare(`SELECT code, instance_id, name, mc_version, loader, mods, revision, created, expires,
+                     downloads, size
+              FROM shares WHERE owner_id = ? AND expires > ? AND uploaded = 1 ORDER BY created DESC`)
     .all(me.id, Date.now()) as any[]
   if (!rows.length) return { shares: [] }
 
@@ -16,9 +17,12 @@ export default defineEventHandler(async (event) => {
     WHERE r.code IN (${rows.map(() => '?').join(',')})
   `).all(...rows.map(r => r.code)) as any[]
 
+  const now = Date.now()
   return {
     shares: rows.map(s => ({
       ...s,
+      // Renewing is only offered near the end — see share/[code]/extend.
+      canExtend: s.expires - now <= EXTEND_WINDOW_MS,
       recipients: recipients
         .filter(r => r.code === s.code)
         .map(r => ({
