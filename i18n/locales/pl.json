@@ -216,7 +216,12 @@
     "resetHint": "Wybierz coś, czego nie używasz nigdzie indziej.",
     "resetDoneTitle": "Hasło zmienione",
     "resetDone": "Możesz się już zalogować nowym hasłem.",
-    "passwordRule": "Minimum 8 znaków."
+    "passwordRule": "Minimum 8 znaków.",
+    "verifyTitle": "Potwierdź adres e-mail",
+    "verifyBody": "Konto jest założone. Otwórz link, który właśnie wysłaliśmy, żeby dokończyć logowanie.",
+    "verifySpam": "Nic nie przyszło po minucie? Zajrzyj do spamu.",
+    "verifyResend": "Wyślij link ponownie",
+    "verifyResent": "Wysłane. Daj mu chwilę."
   },
   "account": {
     "title": "Twoje konto",

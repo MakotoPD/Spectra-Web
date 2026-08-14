@@ -18,7 +18,7 @@ const PROVIDER_META: Record<string, { icon: string, label: string }> = {
 }
 const providers = computed(() => (config.value?.providers ?? []).map(id => ({ id, ...PROVIDER_META[id]! })))
 
-type Mode = 'signin' | 'signup' | 'twofactor' | 'forgot'
+type Mode = 'signin' | 'signup' | 'twofactor' | 'forgot' | 'verify'
 const mode = ref<Mode>(route.query.mode === 'signup' ? 'signup' : 'signin')
 
 const form = reactive({ email: '', password: '', name: '', username: '', code: '' })
@@ -77,7 +77,18 @@ async function signUp() {
     { headers: captchaHeaders.value },
   ))
   if (res?.error) return
+  // With e-mail verification on, signing up hands back no session — say so
+  // instead of bouncing to a page that immediately redirects back here.
+  if (!res?.data?.token) return void (mode.value = 'verify')
   await navigateTo(next.value)
+}
+
+async function resendVerification() {
+  const res = await run(() => auth.sendVerificationEmail({
+    email: form.email,
+    callbackURL: next.value,
+  }))
+  if (!res?.error) sent.value = t('auth.verifyResent')
 }
 
 async function verify() {
@@ -194,6 +205,24 @@ useSeoMeta({ title: () => t('auth.title') })
           <p class="mt-1 text-sm" style="color:#8fa2bb">{{ $t('auth.subtitle') }}</p>
         </template>
 
+        <!-- signed up, waiting on the confirmation link -->
+        <template v-else-if="mode === 'verify'">
+          <div class="text-center">
+            <span
+              class="inline-flex size-12 items-center justify-center rounded-2xl border border-white/10"
+              style="background:rgba(56,189,248,.1);color:#7dd3fc"
+            >
+              <UIcon name="i-lucide-mail-check" class="size-6" />
+            </span>
+            <h1 class="font-display mt-4 text-2xl font-bold tracking-[-0.01em]">{{ $t('auth.verifyTitle') }}</h1>
+            <p class="mt-2 text-sm leading-relaxed" style="color:#8fa2bb">
+              {{ $t('auth.verifyBody') }}
+            </p>
+            <p class="mt-3 rounded-xl bg-white/[0.05] px-3 py-2 font-medium break-all text-white/85">{{ form.email }}</p>
+            <p class="mt-3 text-[13px] leading-relaxed text-white/40">{{ $t('auth.verifySpam') }}</p>
+          </div>
+        </template>
+
         <template v-else>
           <button
             type="button"
@@ -243,8 +272,23 @@ useSeoMeta({ title: () => t('auth.title') })
           <span class="h-px flex-1 bg-white/10" />{{ $t('auth.or') }}<span class="h-px flex-1 bg-white/10" />
         </div>
 
+        <!-- verify: nothing to fill in, only a way out and a resend -->
+        <div v-if="mode === 'verify'" class="mt-7 space-y-2">
+          <button
+            type="button"
+            :disabled="loading"
+            class="w-full rounded-xl border border-white/[0.09] bg-white/[0.03] py-3 text-sm font-semibold text-white/85 transition hover:border-[rgba(125,211,252,.45)] hover:bg-white/[0.06] disabled:opacity-55"
+            @click="resendVerification"
+          >{{ loading ? $t('auth.working') : $t('auth.verifyResend') }}</button>
+          <button
+            type="button"
+            class="w-full py-2 text-sm text-white/45 transition hover:text-white"
+            @click="mode = 'signin'"
+          >{{ $t('auth.backToSignIn') }}</button>
+        </div>
+
         <!-- two-factor -->
-        <form v-if="mode === 'twofactor'" class="mt-6 space-y-4" @submit.prevent="verify">
+        <form v-else-if="mode === 'twofactor'" class="mt-6 space-y-4" @submit.prevent="verify">
           <input
             v-model="form.code"
             inputmode="numeric"

@@ -216,7 +216,12 @@
     "resetHint": "Pick something you have not used anywhere else.",
     "resetDoneTitle": "Password changed",
     "resetDone": "You can sign in with your new password now.",
-    "passwordRule": "At least 8 characters."
+    "passwordRule": "At least 8 characters.",
+    "verifyTitle": "Confirm your e-mail",
+    "verifyBody": "Your account is created. Open the link we just sent to finish signing in.",
+    "verifySpam": "Nothing after a minute? Check the spam folder.",
+    "verifyResend": "Send the link again",
+    "verifyResent": "Sent. Give it a moment."
   },
   "account": {
     "title": "Your account",

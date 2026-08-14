@@ -60,7 +60,13 @@ export default defineEventHandler(async (event) => {
         expires: now + OWNED_TTL_DAYS * 86_400_000,
       })
       notifyRecipients(existing.code, owner.id, clampStr(q.name, 80) ?? 'Minecraft instance', revision)
-      return { code: existing.code, url: `${cfg.public.siteUrl}/s/${existing.code}`, revision, pushed: true }
+      return {
+        code: existing.code,
+        url: `${cfg.public.siteUrl}/s/${existing.code}`,
+        expires: now + OWNED_TTL_DAYS * 86_400_000,
+        revision,
+        pushed: true,
+      }
     }
   }
 
