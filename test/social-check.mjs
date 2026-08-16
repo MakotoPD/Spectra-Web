@@ -91,7 +91,10 @@ assert.equal((await call('/users', { token: a, query: { q: `bob-${rnd}@exam` } }
 console.log('✓ friend search suggests people without leaking addresses')
 
 const carol = await signup('carol')
-const carolRow = (await call('/users', { token: a, query: { q: `carol${rnd}`.slice(0, 6) } })).users[0]
+// Pick the exact account: the database holds carols from earlier runs, and
+// `users[0]` would happily be one of those.
+const carolRow = (await call('/users', { token: a, query: { q: `carol${rnd}` } }))
+  .users.find(u => u.username === `carol${rnd}`)
 assert.ok(carolRow && carolRow.relation === null, 'a stranger shows with no relation')
 await call('/friends', { token: a, method: 'POST', body: { userId: carolRow.id } })
 const sentList = (await call('/friends', { token: a })).outgoing
@@ -131,11 +134,38 @@ assert.equal(sent.sent, 1)
 const notes = await call('/notifications', { token: b })
 assert.equal(notes.notifications[0].kind, 'instance_invite')
 assert.equal(notes.notifications[0].shareCode, up.code)
-assert.equal(notes.unread, 2) // friend_accepted + the invite
+// Only the invite: the friend request bob answered took its notification with it.
+assert.equal(notes.unread, 1)
 console.log('✓ invite notified')
+
+// --- acting on a notification clears it, rather than leaving it forever ---
+const beforeAccept = await call('/notifications', { token: b })
+assert.ok(beforeAccept.notifications.some(n => n.kind === 'instance_invite'), 'the invite is there')
+// The friend request bob accepted earlier must already be gone.
+assert.ok(!beforeAccept.notifications.some(n => n.kind === 'friend_request'),
+  'accepting a friend request must remove its notification')
 
 // --- bob installs it, so he is subscribed at revision 1 ---
 await call(`/share/${up.code}`, { token: b })
+const afterInstall = await call('/notifications', { token: b })
+assert.ok(!afterInstall.notifications.some(n => n.shareCode === up.code && n.kind === 'instance_invite'),
+  'installing the pack must remove the invitation')
+console.log('✓ answered notifications clear themselves')
+
+// Bob's list is empty now — everything he had was answered — so the dismiss
+// test uses alice's "bob accepted you", which no action clears.
+const spare = (await call('/notifications', { token: a })).notifications
+  .find(n => n.kind === 'friend_accepted')
+assert.ok(spare, 'alice should have been told her request was accepted')
+await assert.rejects(
+  () => call(`/notifications/${spare.id}`, { token: b, method: 'DELETE' }),
+  /404/,
+  'nobody can delete a notification that is not theirs',
+)
+await call(`/notifications/${spare.id}`, { token: a, method: 'DELETE' })
+assert.ok(!(await call('/notifications', { token: a })).notifications.some(n => n.id === spare.id),
+  'a dismissed notification must stay gone')
+console.log('✓ notifications can be dismissed, and only by their owner')
 let mine = await call('/shares', { token: a })
 assert.equal(mine.shares[0].recipients[0].importedRevision, 1)
 assert.equal(mine.shares[0].recipients[0].outdated, false)

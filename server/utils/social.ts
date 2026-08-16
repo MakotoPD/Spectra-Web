@@ -117,6 +117,26 @@ export async function areFriends(a: string, b: string): Promise<boolean> {
   return !!row
 }
 
+/**
+ * Drops the notifications an action has just answered.
+ *
+ * A notification is a prompt to do something; once it is done, leaving it in
+ * the list is noise — and because the launcher polls, deleting it only in the
+ * UI would bring it straight back on the next tick.
+ */
+export function clearNotifications(userId: string, kinds: NotificationKind[], opts: {
+  actorId?: string
+  shareCode?: string
+} = {}) {
+  return exec(
+    `DELETE FROM notification
+     WHERE user_id = $1 AND kind = ANY($2::text[])
+       AND ($3::text IS NULL OR actor_id = $3)
+       AND ($4::text IS NULL OR share_code = $4)`,
+    [userId, kinds, opts.actorId ?? null, opts.shareCode ?? null],
+  )
+}
+
 export function notify(n: {
   userId: string
   kind: NotificationKind

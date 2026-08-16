@@ -15,6 +15,9 @@ export default defineEventHandler(async (event) => {
   )
   if (!row) throw createError({ statusCode: 404, statusMessage: 'no such request' })
 
+  // Answered, so the prompt goes — whichever way it was answered.
+  await clearNotifications(me.id, ['friend_request'], { actorId: row.requester_id })
+
   if (action === 'accept') {
     await exec("UPDATE friendship SET status = 'accepted' WHERE id = $1", [id])
     await notify({ userId: row.requester_id, kind: 'friend_accepted', actorId: me.id })

@@ -41,6 +41,10 @@ export default defineEventHandler(async (event) => {
          ON CONFLICT (code, user_id) DO UPDATE SET imported_revision = EXCLUDED.imported_revision`,
         [code, user.id, Date.now(), row.revision],
       )
+      // They have the pack now, so the invitation (or the update notice that
+      // sent them here) has served its purpose. Tied to the download rather
+      // than to a button, so a cancelled install leaves the prompt in place.
+      await clearNotifications(user.id, ['instance_invite', 'instance_update'], { shareCode: code })
     }
   }
 
