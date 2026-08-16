@@ -11,7 +11,8 @@ const nav = computed(() => [
   { label: t('nav.features'), to: '#features' },
   { label: t('nav.loaders'), to: '#loaders' },
   { label: t('nav.download'), to: '#download' },
-  { label: t('nav.faq'), to: '#faq' }
+  { label: t('nav.faq'), to: '#faq' },
+  { label: 'Discord', to: 'https://discord.gg/pv52eNr6uc', external: true }
 ])
 </script>
 
