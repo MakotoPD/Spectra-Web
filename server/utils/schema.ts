@@ -86,6 +86,18 @@ export async function ensureSchema() {
     CREATE INDEX IF NOT EXISTS idx_events_install ON events(install_id);
   `)
 
+  // better-auth maps a `number` field to `integer`, and epoch milliseconds do
+  // not fit in four bytes — the heartbeat failed with "out of range". Widened
+  // here, and only when it has not been widened already, so boot does not
+  // rewrite the table every time.
+  const narrow = await pool.query(`
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'user' AND column_name = 'lastSeen' AND data_type = 'integer'
+  `)
+  if (narrow.rowCount) {
+    await pool.query('ALTER TABLE "user" ALTER COLUMN "lastSeen" TYPE BIGINT')
+  }
+
   // One Minecraft profile belongs to one account. better-auth creates the
   // columns (see `additionalFields`); the uniqueness is ours to enforce, and it
   // is what stops two people claiming the same name.

@@ -10,6 +10,37 @@ import { exec, one, q } from './db'
 export type FriendStatus = 'pending' | 'accepted' | 'blocked'
 export type NotificationKind = 'friend_request' | 'friend_accepted' | 'instance_invite' | 'instance_update'
 
+/** What a friend sees. Never the raw mode — 'hidden' must not be detectable. */
+export type Status = 'online' | 'in_game' | 'dnd' | 'offline'
+
+/** What the player chose for themselves. */
+export type PresenceMode = 'visible' | 'dnd' | 'hidden'
+export const PRESENCE_MODES: PresenceMode[] = ['visible', 'dnd', 'hidden']
+
+/**
+ * A launcher checks in every 30s; twice that plus a little covers a slow tick
+ * or a missed one without leaving somebody "online" long after they closed it.
+ */
+export const PRESENCE_TIMEOUT_MS = 75_000
+
+/**
+ * The status a friend is allowed to see.
+ *
+ * Computed here rather than in the UI, so the raw mode never leaves the server:
+ * "hidden" has to be indistinguishable from a closed launcher, which it is not
+ * if the client is told to draw grey for a hidden friend.
+ */
+export function visibleStatus(row: {
+  presence?: string | null
+  lastSeen?: string | number | null
+  playing?: boolean | null
+}): Status {
+  if ((row.presence ?? 'visible') === 'hidden') return 'offline'
+  if (Number(row.lastSeen ?? 0) < Date.now() - PRESENCE_TIMEOUT_MS) return 'offline'
+  if (row.playing) return 'in_game'
+  return row.presence === 'dnd' ? 'dnd' : 'online'
+}
+
 /** Public shape of a user — never leak e-mail or anything auth-related. */
 export interface PublicUser {
   id: string
@@ -75,15 +106,20 @@ export function getUser(id: string) {
  * Accepted friends of `userId`, whichever side of the row they sit on. Carries
  * `friendshipId` so the UI can unfriend without a second lookup.
  */
-export function friendsOf(userId: string) {
-  return q<PublicUser & { friendshipId: number }>(
-    `SELECT u.id, u.name, u.username, u.image, u."mcUsername", f.id AS "friendshipId"
+export async function friendsOf(userId: string) {
+  const rows = await q<any>(
+    `SELECT u.id, u.name, u.username, u.image, u."mcUsername", u.presence, u."lastSeen", u.playing,
+            f.id AS "friendshipId"
      FROM friendship f
      JOIN "user" u ON u.id = CASE WHEN f.requester_id = $1 THEN f.addressee_id ELSE f.requester_id END
      WHERE f.status = 'accepted' AND (f.requester_id = $1 OR f.addressee_id = $1)
      ORDER BY lower(coalesce(u.username, u.name))`,
     [userId],
   )
+  return rows.map(({ presence, lastSeen, playing, ...user }) => ({
+    ...user,
+    status: visibleStatus({ presence, lastSeen, playing }),
+  })) as (PublicUser & { friendshipId: number, status: Status })[]
 }
 
 /** Requests waiting for `userId` to answer (`incoming`) or to be answered. */

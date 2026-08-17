@@ -5,7 +5,13 @@
 
 export default defineEventHandler(async (event) => {
   const me = await requireUser(event)
-  const since = Number(getQuery(event).since) || 0
+  const query = getQuery(event)
+  const since = Number(query.since) || 0
+
+  // The launcher's heartbeat rides along with this poll rather than making a
+  // second request every 30 seconds just to say "still here".
+  await exec('UPDATE "user" SET "lastSeen" = $1, playing = $2 WHERE id = $3',
+    [Date.now(), query.playing === '1', me.id])
 
   const rows = await q<any>(
     `SELECT n.id, n.kind, n.share_code, n.data, n.read, n.created,

@@ -115,6 +115,30 @@ assert.equal((await call('/friends', { token: a })).outgoing.length, 1, 'an exac
 await call(`/friends/${(await call('/friends', { token: a })).outgoing[0].id}`, { token: a, method: 'DELETE' })
 console.log('✓ invite by id, listed as sent, cancellable — and by e-mail or name')
 
+// --- presence: what friends may see, and what "hidden" must hide ---
+await call('/notifications', { token: b, query: { playing: '1' } })   // bob's heartbeat, in game
+let seen = (await call('/friends', { token: a })).friends.find(f => f.id === bob.id)
+assert.equal(seen.status, 'in_game', 'a friend with a game running shows as in game')
+
+await call('/presence', { token: b, method: 'POST', body: { mode: 'dnd', playing: false } })
+seen = (await call('/friends', { token: a })).friends.find(f => f.id === bob.id)
+assert.equal(seen.status, 'dnd')
+
+await call('/presence', { token: b, method: 'POST', body: { mode: 'hidden' } })
+seen = (await call('/friends', { token: a })).friends.find(f => f.id === bob.id)
+assert.equal(seen.status, 'offline', 'hidden must be indistinguishable from offline')
+// …and nothing in the payload gives it away.
+assert.ok(!('presence' in seen) && !('lastSeen' in seen), 'the raw mode must not leave the server')
+
+await call('/presence', { token: b, method: 'POST', body: { mode: 'visible' } })
+assert.equal((await call('/friends', { token: a })).friends.find(f => f.id === bob.id).status, 'online')
+await assert.rejects(
+  () => call('/presence', { token: b, method: 'POST', body: { mode: 'invisible-ish' } }),
+  /400/,
+  'only the three modes are accepted',
+)
+console.log('✓ presence: online, in game, do not disturb, and a hidden that stays hidden')
+
 // --- share upload (owned) ---
 const pack = Buffer.from('PK\x03\x04 pretend this is a share pack')
 const up = await call('/share', {

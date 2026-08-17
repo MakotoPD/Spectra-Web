@@ -206,6 +206,12 @@ export function useAuth() {
         // `api/me/minecraft.post.ts`, never by a client update.
         mcUuid: { type: 'string', required: false, input: false },
         mcUsername: { type: 'string', required: false, input: false },
+        // Presence: what the player chose to show ('visible' | 'dnd' | 'hidden'),
+        // when their launcher last checked in, and whether a game is running.
+        // Written only by the presence endpoints, never by a client update.
+        presence: { type: 'string', required: false, input: false },
+        lastSeen: { type: 'number', required: false, input: false },
+        playing: { type: 'boolean', required: false, input: false },
       },
     },
     socialProviders: socialProviders(),
