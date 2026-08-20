@@ -49,8 +49,18 @@ function renderMarkdown(text: string): string {
     .replace(/`([^`]+)`/g, '<code class="rounded bg-black/40 px-1 font-mono text-[0.85em]">$1</code>')
     .replace(/^&gt; (.+)$/gm, '<span class="block border-l-2 border-white/25 pl-2 text-white/60">$1</span>')
     .replace(/\[([^\]]+)\]\((https?:[^)]+)\)/g, '<span class="text-[#00a8fc]">$1</span>')
+    // Custom emoji, matched in their escaped form because `<` became `&lt;`
+    // above. Both captures are constrained to word characters and digits by the
+    // pattern itself, so neither can carry anything out into the attribute.
+    .replace(/&lt;(a?):(\w+):(\d+)&gt;/g, (_, animated, name, id) =>
+      `<img src="https://cdn.discordapp.com/emojis/${id}.${animated ? 'gif' : 'png'}?size=44"`
+      + ` alt=":${name}:" title=":${name}:" class="inline-block size-[1.375em] align-[-0.3em]">`)
     .replace(/\n/g, '<br>')
 }
+
+/** Discord serves every custom emoji from here. */
+const emojiUrl = (id: string, animated?: boolean) =>
+  `https://cdn.discordapp.com/emojis/${id}.${animated ? 'gif' : 'png'}?size=44`
 
 const hasEmbed = (embed: EmbedDraft) =>
   embed.title || embed.description || embed.author.name || embed.footer.text
@@ -151,7 +161,15 @@ const fieldStyle = (inline: boolean) => inline ? {} : { gridColumn: '1 / -1' }
               class="flex items-center gap-1.5 rounded px-4 py-1.5 text-[14px] font-medium"
               :class="BUTTON_CSS[component.style ?? 2]"
             >
-              {{ component.label || 'Button' }}
+              <!-- A button's emoji is a field, not markup in the label — a
+                   custom one carries an id, a unicode one is just the character. -->
+              <img
+                v-if="component.emoji?.id"
+                :src="emojiUrl(component.emoji.id, component.emoji.animated)"
+                :alt="component.emoji.name" class="size-[1.15em] object-contain"
+              >
+              <span v-else-if="component.emoji?.name">{{ component.emoji.name }}</span>
+              {{ component.label || (component.emoji ? '' : 'Button') }}
               <UIcon v-if="component.style === 5" name="i-lucide-external-link" class="size-3.5 opacity-70" />
             </button>
             <div

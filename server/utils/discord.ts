@@ -127,6 +127,38 @@ export function botUser(cfg: DiscordConfig) {
   )
 }
 
+export interface DiscordEmoji {
+  id: string
+  name: string
+  animated: boolean
+  available: boolean
+  managed: boolean
+}
+
+/**
+ * The server's own emoji.
+ *
+ * `available: false` means the guild dropped below the boost level that granted
+ * the slot — the emoji still exists and still lists, but Discord refuses to
+ * render it, so offering it would only produce broken messages.
+ *
+ * The bot needs no permission to use these beyond being in the guild.
+ */
+export async function guildEmojis(cfg: DiscordConfig) {
+  const emojis = await cached(`emojis:${cfg.guildId}`, () =>
+    discordRequest<DiscordEmoji[]>(cfg, 'GET', `/guilds/${cfg.guildId}/emojis`))
+  return emojis
+    .filter(e => e.available !== false && e.id)
+    .map(e => ({
+      id: e.id,
+      name: e.name,
+      animated: !!e.animated,
+      // What goes into message text. Animated emoji take `<a:` — using `<:` for
+      // one renders as literal text rather than as the emoji.
+      markup: `<${e.animated ? 'a' : ''}:${e.name}:${e.id}>`,
+    }))
+}
+
 export interface DiscordRole {
   id: string
   name: string

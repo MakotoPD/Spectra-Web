@@ -100,8 +100,22 @@ export async function ensureSchema() {
       ticket_panel_channel    TEXT,
       ticket_prefix           TEXT NOT NULL DEFAULT 'ticket-',
       ticket_open_embed       JSONB NOT NULL DEFAULT '{}',
-      ticket_panel_embed      JSONB NOT NULL DEFAULT '{}'
+      ticket_panel_embed      JSONB NOT NULL DEFAULT '{}',
+      -- Join this voice channel and the bot makes you one of your own.
+      voice_hub               TEXT,
+      voice_category          TEXT
     );
+
+    -- The channels that hub created. They are deleted the moment the last
+    -- person leaves, so this table is a list of what is currently alive — and
+    -- the only way to tell an auto-created channel from a permanent one.
+    CREATE TABLE IF NOT EXISTS discord_temp_channels (
+      channel_id TEXT PRIMARY KEY,
+      guild_id   TEXT NOT NULL,
+      owner_id   TEXT NOT NULL,
+      created    BIGINT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_discord_temp_guild ON discord_temp_channels(guild_id);
 
     -- Roles that can see every ticket. Pinged when one opens.
     CREATE TABLE IF NOT EXISTS discord_ticket_roles (

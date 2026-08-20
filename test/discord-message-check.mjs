@@ -114,6 +114,41 @@ rejects('a dropdown with no options', () =>
 ok('a role dropdown needs no options', () =>
   cleanComponents([{ type: 1, components: [{ type: 6, custom_id: 'roles' }] }]))
 
+// --- emoji on buttons ------------------------------------------------------
+// Two different things share the `emoji` field, and the id is what tells them
+// apart. Dropping it turns a server emoji into a lookup for a unicode character
+// named "spectra_logo", which renders as nothing.
+
+const custom = cleanComponents([{
+  type: 1,
+  components: [{
+    type: 2, style: 1, label: 'Go', custom_id: 'a',
+    emoji: { id: '123456789012345678', name: 'spectra', animated: true },
+  }],
+}])[0].components[0].emoji
+equal('a server emoji keeps id, name and animated',
+  custom, { id: '123456789012345678', name: 'spectra', animated: true })
+
+equal('a unicode emoji stays a bare name',
+  cleanComponents([{
+    type: 1,
+    components: [{ type: 2, style: 1, label: 'Go', custom_id: 'a', emoji: { name: '🎫' } }],
+  }])[0].components[0].emoji,
+  { name: '🎫' })
+
+equal('a still emoji does not claim to be animated',
+  cleanComponents([{
+    type: 1,
+    components: [{ type: 2, style: 1, label: 'Go', custom_id: 'a', emoji: { id: '1', name: 'x' } }],
+  }])[0].components[0].emoji,
+  { id: '1', name: 'x' })
+
+// An emoji is enough on its own — Discord renders an icon-only button.
+ok('a button with an emoji and no label', () =>
+  cleanComponents([{
+    type: 1, components: [{ type: 2, style: 1, custom_id: 'a', emoji: { name: '🎫' } }],
+  }]))
+
 // --- the warning -----------------------------------------------------------
 
 const rows = cleanComponents([{

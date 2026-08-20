@@ -11,6 +11,7 @@
 
 import type { EmbedDraft } from './DiscordEmbedBuilder.vue'
 import type { RowDraft } from './DiscordComponentsBuilder.vue'
+import type { GuildEmoji } from './DiscordEmojiPicker.vue'
 
 const emit = defineEmits<{ unauthorized: [] }>()
 
@@ -99,6 +100,22 @@ const categoryItems = computed(() =>
 
 async function loadChannels() {
   channels.value = (await $fetch<{ channels: PostableChannel[] }>('/api/admin/discord/channels')).channels
+}
+
+// --- server emoji ----------------------------------------------------------
+// Loaded once and shared by every builder on the page: the list changes rarely
+// and the endpoint caches it anyway.
+const emojis = ref<GuildEmoji[]>([])
+
+async function loadEmojis() {
+  if (emojis.value.length) return
+  try {
+    emojis.value = (await $fetch<{ emojis: GuildEmoji[] }>('/api/admin/discord/emojis')).emojis
+  } catch (e) {
+    // A server with no custom emoji, or a bot that cannot read them, is not a
+    // reason to fail the pane — the picker just stays disabled.
+    console.warn('[discord] emoji unavailable', e)
+  }
 }
 
 // --- messages --------------------------------------------------------------
@@ -379,11 +396,18 @@ interface BotConfig {
   ticketPanelChannel: string | null
   ticketPrefix: string
   ticketRoles: string[]
+  voiceHub: string | null
+  voiceCategory: string | null
 }
 const config = reactive<BotConfig>({
   logChannel: '', ticketCategory: '', ticketArchiveCategory: '',
   ticketPanelChannel: '', ticketPrefix: 'ticket-', ticketRoles: [],
+  voiceHub: '', voiceCategory: '',
 })
+
+const voiceChannels = ref<Named[]>([])
+const voiceChannelItems = computed(() =>
+  [{ label: '— off —', value: '' }, ...voiceChannels.value.map(c => ({ label: `🔊 ${c.name}`, value: c.id }))])
 const panelTitle = ref('Need a hand?')
 const panelDescription = ref('Press the button below and a private channel will open for you.')
 
@@ -392,17 +416,23 @@ async function loadConfig() {
     const res = await $fetch<{
       config: BotConfig
       textChannels: Named[]
+      voiceChannels: Named[]
       categories: Named[]
       roles: { id: string, name: string, color: number }[]
     }>('/api/admin/discord/config')
     Object.assign(config, {
       ...res.config,
+      // Nulls become empty strings: a USelect bound to null shows no selection
+      // at all rather than the "none" option.
       logChannel: res.config.logChannel ?? '',
       ticketCategory: res.config.ticketCategory ?? '',
       ticketArchiveCategory: res.config.ticketArchiveCategory ?? '',
       ticketPanelChannel: res.config.ticketPanelChannel ?? '',
+      voiceHub: res.config.voiceHub ?? '',
+      voiceCategory: res.config.voiceCategory ?? '',
     })
     textChannels.value = res.textChannels
+    voiceChannels.value = res.voiceChannels
     categories.value = res.categories
     roles.value = res.roles
   })
@@ -436,9 +466,9 @@ const loaded = new Set<Pane>()
 watch(pane, async (to) => {
   if (loaded.has(to)) return
   loaded.add(to)
-  if (to === 'messages') await loadChannels()
+  if (to === 'messages') { await loadChannels(); await loadEmojis() }
   if (to === 'moderation') await loadWarnings()
-  if (to === 'welcome') { await loadConfig(); await loadWelcome() }
+  if (to === 'welcome') { await loadConfig(); await loadWelcome(); await loadEmojis() }
   if (to === 'tickets') await loadTickets()
   if (to === 'config') await loadConfig()
 })
@@ -532,7 +562,10 @@ const roleName = (id: string) => roles.value.find(r => r.id === id)?.name ?? id
 
                 <template v-if="composer === 'text'">
                   <UTextarea v-model="draft" :rows="8" :maxlength="2000" placeholder="What should the bot say? Markdown works." class="w-full" />
-                  <p class="text-right font-mono text-[11px] text-white/35">{{ draft.length }}/2000</p>
+                  <div class="flex items-center gap-2">
+                    <DiscordEmojiPicker :emojis="emojis" />
+                    <span class="ms-auto font-mono text-[11px] text-white/35">{{ draft.length }}/2000</span>
+                  </div>
                 </template>
 
                 <template v-else-if="composer === 'embeds'">
@@ -554,6 +587,9 @@ const roleName = (id: string) => roles.value.find(r => r.id === id)?.name ?? id
                       :disabled="msgEmbeds.length >= MAX_EMBEDS"
                       @click="msgEmbeds.push(emptyEmbed())"
                     />
+                    <!-- Inserts wherever the caret is, so it works for the
+                         description, a field value, the footer — any of them. -->
+                    <DiscordEmojiPicker :emojis="emojis" />
                     <!-- The 6000 is a whole-message budget; running past it is
                          the failure people hit last, after everything else fits. -->
                     <span
@@ -563,7 +599,7 @@ const roleName = (id: string) => roles.value.find(r => r.id === id)?.name ?? id
                   </div>
                 </template>
 
-                <DiscordComponentsBuilder v-else v-model="msgRows" />
+                <DiscordComponentsBuilder v-else v-model="msgRows" :emojis="emojis" />
               </div>
 
               <!-- preview -->
@@ -735,13 +771,14 @@ const roleName = (id: string) => roles.value.find(r => r.id === id)?.name ?? id
             </div>
 
             <div class="grid gap-4 lg:grid-cols-2">
-              <div>
+              <div class="space-y-2">
                 <UTextarea
                   v-if="welcome.messageType === 'text'"
                   v-model="welcome.content" :rows="6" :maxlength="2000" class="w-full"
                   placeholder="Welcome {mention} to {servername}!"
                 />
                 <DiscordEmbedBuilder v-else v-model="welcomeEmbed" />
+                <DiscordEmojiPicker :emojis="emojis" />
               </div>
 
               <div class="space-y-2">
@@ -878,6 +915,35 @@ const roleName = (id: string) => roles.value.find(r => r.id === id)?.name ?? id
             </div>
           </div>
 
+          <UButton class="mt-4" icon="i-lucide-save" label="Save configuration" :loading="busy === 'save-config'" @click="saveConfig" />
+        </UCard>
+
+        <UCard>
+          <template #header><h2 class="font-semibold">Temporary voice channels</h2></template>
+          <p class="mb-3 text-sm text-white/50">
+            Joining the hub gives someone a voice channel of their own and moves them into it.
+            It disappears when the last person leaves. Nobody ever stays in the hub itself —
+            make it an empty channel called something like “➕ New channel”.
+          </p>
+          <div class="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label class="mb-1 block text-[11px] text-white/40">Hub channel</label>
+              <USelect v-model="config.voiceHub" :items="voiceChannelItems" class="w-full" />
+            </div>
+            <div>
+              <label class="mb-1 block text-[11px] text-white/40">Create them in</label>
+              <USelect v-model="config.voiceCategory" :items="categoryItems" class="w-full" />
+              <p class="mt-1 text-[11px] text-white/30">Leave empty to use the hub's own category.</p>
+            </div>
+          </div>
+          <p class="mt-3 text-[11px] text-white/35">
+            Handled by the bot, so it needs dc-bot running with <b>Manage Channels</b> and
+            <b>Move Members</b>. Owners get <code class="rounded bg-white/8 px-1 font-mono">/vc rename</code>,
+            <code class="rounded bg-white/8 px-1 font-mono">limit</code>,
+            <code class="rounded bg-white/8 px-1 font-mono">lock</code>,
+            <code class="rounded bg-white/8 px-1 font-mono">unlock</code> and
+            <code class="rounded bg-white/8 px-1 font-mono">kick</code> for their own channel.
+          </p>
           <UButton class="mt-4" icon="i-lucide-save" label="Save configuration" :loading="busy === 'save-config'" @click="saveConfig" />
         </UCard>
 

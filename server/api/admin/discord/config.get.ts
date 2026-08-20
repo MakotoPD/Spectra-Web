@@ -12,9 +12,11 @@ export default defineEventHandler(async (event) => {
       ticket_archive_category: string | null
       ticket_panel_channel: string | null
       ticket_prefix: string
+      voice_hub: string | null
+      voice_category: string | null
     }>(
       `SELECT log_channel, ticket_category, ticket_archive_category,
-              ticket_panel_channel, ticket_prefix
+              ticket_panel_channel, ticket_prefix, voice_hub, voice_category
        FROM discord_config WHERE guild_id = $1`,
       [cfg.guildId],
     ),
@@ -32,11 +34,18 @@ export default defineEventHandler(async (event) => {
       ticketPanelChannel: config?.ticket_panel_channel ?? null,
       ticketPrefix: config?.ticket_prefix ?? 'ticket-',
       ticketRoles: roleRows.map(r => r.role_id),
+      voiceHub: config?.voice_hub ?? null,
+      voiceCategory: config?.voice_category ?? null,
     },
     // Categories are what a ticket channel gets created *inside*, so they are
     // offered separately from the channels a message can be posted to.
     textChannels: channels
       .filter(c => c.type === 0 || c.type === 5)
+      .sort((a, b) => a.position - b.position)
+      .map(c => ({ id: c.id, name: c.name })),
+    // Type 2 is a normal voice channel; 13 is a stage, which cannot be a hub.
+    voiceChannels: channels
+      .filter(c => c.type === 2)
       .sort((a, b) => a.position - b.position)
       .map(c => ({ id: c.id, name: c.name })),
     categories: channels

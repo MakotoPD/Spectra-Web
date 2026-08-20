@@ -58,7 +58,7 @@ export interface DiscordComponent {
   label?: string
   custom_id?: string
   url?: string
-  emoji?: { name?: string, id?: string }
+  emoji?: { name?: string, id?: string, animated?: boolean }
   placeholder?: string
   options?: { label: string, value: string, description?: string }[]
   disabled?: boolean
@@ -204,7 +204,20 @@ function cleanButton(raw: DiscordComponent, at: string): DiscordComponent {
 
   const button: DiscordComponent = { type: 2, style }
   if (label) button.label = label
-  if (raw.emoji?.name) button.emoji = { name: raw.emoji.name }
+
+  // Two different things share this field. A unicode emoji is `{ name: "🎫" }`;
+  // one of the server's own is `{ id, name, animated }`, and dropping the id
+  // would turn it into a lookup for a unicode character named "spectra_logo".
+  if (raw.emoji?.id) {
+    button.emoji = {
+      id: String(raw.emoji.id),
+      name: String(raw.emoji.name ?? ''),
+      ...(raw.emoji.animated ? { animated: true } : {}),
+    }
+  } else if (raw.emoji?.name) {
+    button.emoji = { name: String(raw.emoji.name) }
+  }
+
   if (raw.disabled) button.disabled = true
 
   if (style === LINK_STYLE) {

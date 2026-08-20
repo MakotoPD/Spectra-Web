@@ -15,18 +15,27 @@
 // interaction failed" when pressed, so ids the bot does not handle are flagged
 // as a warning rather than blocked — the handler may be about to be written.
 
+import type { GuildEmoji } from './DiscordEmojiPicker.vue'
+
 export interface ComponentDraft {
   type: number
   style?: number
   label?: string
   custom_id?: string
   url?: string
+  /** A server emoji is `{ id, name, animated }`; a unicode one is `{ name }`. */
+  emoji?: { id?: string, name?: string, animated?: boolean }
   placeholder?: string
   options?: { label: string, value: string, description?: string }[]
 }
 export interface RowDraft { type: 1, components: ComponentDraft[] }
 
 const rows = defineModel<RowDraft[]>({ required: true })
+
+const props = defineProps<{ emojis?: GuildEmoji[] }>()
+
+const emojiUrl = (id: string, animated?: boolean) =>
+  `https://cdn.discordapp.com/emojis/${id}.${animated ? 'gif' : 'png'}?size=44`
 
 const MAX_ROWS = 5
 const MAX_BUTTONS = 5
@@ -126,7 +135,30 @@ const unhandled = computed(() => {
                 @click="row.components.splice(ci, 1)"
               />
             </div>
-            <UInput v-model="component.label" :maxlength="80" size="sm" class="mb-1.5 w-full" placeholder="Label (max 80)" />
+            <div class="mb-1.5 flex items-center gap-1.5">
+              <UInput v-model="component.label" :maxlength="80" size="sm" class="flex-1" placeholder="Label (max 80)" />
+
+              <!-- Shown beside the label because that is where it appears on
+                   the button, and it is set as a field rather than typed into
+                   the label — markup in a label renders as literal text. -->
+              <button
+                v-if="component.emoji?.id"
+                type="button"
+                class="flex size-8 shrink-0 items-center justify-center rounded bg-white/8 transition hover:bg-white/15"
+                title="Remove the emoji"
+                @click="delete component.emoji"
+              >
+                <img
+                  :src="emojiUrl(component.emoji.id, component.emoji.animated)"
+                  :alt="component.emoji.name" class="size-5 object-contain"
+                >
+              </button>
+              <DiscordEmojiPicker
+                v-else-if="props.emojis?.length"
+                :emojis="props.emojis" mode="button"
+                @select="e => component.emoji = { id: e.id, name: e.name, animated: e.animated }"
+              />
+            </div>
             <UInput
               v-if="component.style === 5"
               v-model="component.url" size="sm" class="w-full" placeholder="https://… (where it goes)"
