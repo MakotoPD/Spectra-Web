@@ -17,8 +17,7 @@ function groupExpr(expr: string): string {
 }
 
 function requireAdmin(event: import('h3').H3Event) {
-  const cfg = useRuntimeConfig()
-  if (!tokenOk(getCookie(event, 'spectra_admin'), cfg.adminToken)) {
+  if (!tokenOk(getCookie(event, 'spectra_admin'), adminToken())) {
     throw createError({ statusCode: 401, statusMessage: 'unauthorized' })
   }
 }

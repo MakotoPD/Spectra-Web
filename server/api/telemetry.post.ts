@@ -27,14 +27,13 @@ const MAX_EVENTS = 50
 const MAX_PROPS_BYTES = 2000
 
 export default defineEventHandler(async (event) => {
-  const cfg = useRuntimeConfig()
-
   // The launcher is a Tauri desktop app, so requests are cross-origin.
   setHeader(event, 'access-control-allow-origin', '*')
 
   // Soft anti-spam: if a key is configured, require it.
-  if (cfg.ingestKey) {
-    if (getHeader(event, 'x-spectra-key') !== cfg.ingestKey) {
+  const key = ingestKey()
+  if (key) {
+    if (getHeader(event, 'x-spectra-key') !== key) {
       throw createError({ statusCode: 401, statusMessage: 'invalid key' })
     }
   }

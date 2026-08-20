@@ -10,7 +10,8 @@
 
 export default defineEventHandler(async (event) => {
   const cfg = useRuntimeConfig()
-  if (cfg.ingestKey && getHeader(event, 'x-spectra-key') !== cfg.ingestKey) {
+  const ingest = ingestKey()
+  if (ingest && getHeader(event, 'x-spectra-key') !== ingest) {
     throw createError({ statusCode: 401, statusMessage: 'invalid key' })
   }
 
