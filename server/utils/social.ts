@@ -53,11 +53,19 @@ export interface PublicUser {
 
 const PUBLIC_COLUMNS = 'id, name, username, image, "mcUsername"'
 
+/**
+ * `%` and `_` are wildcards to LIKE, so an unescaped search box is a listing:
+ * typing `%` alone matches every row. Escaped here — the exact-match half of
+ * the search still compares the raw text, which is why it takes its own param.
+ */
+const likePrefix = (s: string) => s.replace(/[\\%_]/g, c => `\\${c}`)
+
 export function findUser(query: string) {
   const q1 = query.trim().toLowerCase()
   if (!q1) return Promise.resolve(undefined)
   // In-game name included: for most people that is the name their friends know
   // them by, and the one they will type.
+  // sql-safe: PUBLIC_COLUMNS is a constant column list
   return one<PublicUser>(
     `SELECT ${PUBLIC_COLUMNS} FROM "user"
      WHERE lower(username) = $1 OR lower(email) = $1 OR lower("mcUsername") = $1
@@ -80,6 +88,7 @@ export function searchUsers(query: string, meId: string) {
   const q1 = query.trim().toLowerCase()
   if (q1.length < 2) return Promise.resolve([])
 
+  // sql-safe: PUBLIC_COLUMNS is a constant column list, prefixed with the alias
   return q<PublicUser & { relation: 'friend' | 'pending' | null }>(
     `SELECT ${PUBLIC_COLUMNS.split(', ').map(c => `u.${c}`).join(', ')},
             CASE f.status WHEN 'accepted' THEN 'friend' WHEN 'pending' THEN 'pending' ELSE NULL END AS relation
@@ -88,17 +97,19 @@ export function searchUsers(query: string, meId: string) {
        ON (f.requester_id = u.id AND f.addressee_id = $2)
        OR (f.addressee_id = u.id AND f.requester_id = $2)
      WHERE u.id <> $2
-       AND (lower(u.username) LIKE $1 || '%' OR lower(u."mcUsername") LIKE $1 || '%')
+       AND (lower(u.username) LIKE $3 || '%' ESCAPE '\'
+            OR lower(u."mcUsername") LIKE $3 || '%' ESCAPE '\')
        AND coalesce(f.status, '') <> 'blocked'
      -- Exact hits first, so typing a full name puts it at the top.
      ORDER BY (lower(u.username) = $1 OR lower(u."mcUsername") = $1) DESC,
               lower(coalesce(u.username, u."mcUsername"))
      LIMIT 8`,
-    [q1, meId],
+    [q1, meId, likePrefix(q1)],
   )
 }
 
 export function getUser(id: string) {
+  // sql-safe: PUBLIC_COLUMNS is a constant column list
   return one<PublicUser>(`SELECT ${PUBLIC_COLUMNS} FROM "user" WHERE id = $1`, [id])
 }
 

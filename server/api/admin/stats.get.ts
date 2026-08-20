@@ -3,6 +3,19 @@
 
 interface Bucket { label: string, value: number }
 
+// The grouping fragments, spelled out. They are column names and JSONB paths
+// rather than values, so they cannot be passed as $n — an allowlist is what
+// keeps them from ever becoming something a request chose.
+const GROUPABLE = new Set([
+  'version', 'os', 'locale', 'arch',
+  "props->>'loader'", "props->>'mc'", "props->>'name'",
+])
+
+function groupExpr(expr: string): string {
+  if (!GROUPABLE.has(expr)) throw new Error(`refusing to group by ${expr}`)
+  return expr
+}
+
 function requireAdmin(event: import('h3').H3Event) {
   const cfg = useRuntimeConfig()
   if (!tokenOk(getCookie(event, 'spectra_admin'), cfg.adminToken)) {
@@ -11,7 +24,9 @@ function requireAdmin(event: import('h3').H3Event) {
 }
 
 /** Distinct installs grouped by a column/expression, top N. */
-function distinctInstallsBy(expr: string, since: string, limit = 8) {
+function distinctInstallsBy(name: string, since: string, limit = 8) {
+  const expr = groupExpr(name)
+  // sql-safe: expr comes from GROUPABLE, never from the request
   return q<Bucket>(
     `SELECT ${expr} AS label, COUNT(DISTINCT install_id)::int AS value
      FROM events WHERE day >= $1 AND ${expr} IS NOT NULL AND ${expr} <> ''
@@ -21,7 +36,9 @@ function distinctInstallsBy(expr: string, since: string, limit = 8) {
 }
 
 /** Event count grouped by a props expression, top N. */
-function countBy(eventName: string, expr: string, since: string, limit = 8) {
+function countBy(eventName: string, name: string, since: string, limit = 8) {
+  const expr = groupExpr(name)
+  // sql-safe: expr comes from GROUPABLE, never from the request
   return q<Bucket>(
     `SELECT ${expr} AS label, COUNT(*)::int AS value
      FROM events WHERE event = $1 AND day >= $2 AND ${expr} IS NOT NULL AND ${expr} <> ''

@@ -9,7 +9,8 @@
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
-    "check:social": "node test/social-check.mjs"
+    "check:social": "node test/social-check.mjs",
+    "check:sql": "node test/sql-check.mjs"
   },
   "dependencies": {
     "@nuxt/content": "3.14.0",

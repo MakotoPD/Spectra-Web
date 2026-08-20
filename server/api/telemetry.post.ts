@@ -77,6 +77,7 @@ export default defineEventHandler(async (event) => {
   }
 
   if (tuples.length) {
+    // sql-safe: tuples are generated `($1, $2, …)` placeholders; the data is in `values`
     await exec(
       `INSERT INTO events (ts, day, install_id, event, version, os, arch, locale, props)
        VALUES ${tuples.join(', ')}`,

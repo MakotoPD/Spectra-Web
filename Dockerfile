@@ -25,10 +25,6 @@ COPY --from=builder /app/.output ./.output
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=3000
-# Mount the old SQLite volume here on the first deploy: the server copies those
-# rows into Postgres on boot (server/utils/legacy-sqlite.ts) and says so in the
-# log. Once they are across, unmount it — every later boot is a no-op.
-ENV LEGACY_SQLITE_DIR=/app/data
 
 EXPOSE 3000
 
