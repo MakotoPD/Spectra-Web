@@ -203,6 +203,54 @@ async function removeUser(id: string) {
 
 const shortDate = (ms: number) => new Date(ms).toLocaleDateString()
 
+// --- test accounts ---------------------------------------------------------
+// Wiping every @example.com signup in one click. Two steps, and the first one
+// says how many there are: a bulk delete that does not tell you what it is
+// about to remove is a bulk delete nobody should press.
+const TEST_DOMAIN = '@example.com'
+/** null = not asked yet. A number = asked, and this many are waiting. */
+const purgeCount = ref<number | null>(null)
+const purgeCapped = ref(false)
+const purging = ref(false)
+
+async function countTestAccounts() {
+  purging.value = true
+  usersError.value = ''
+  try {
+    const res = await $fetch<{ users: AdminUser[] }>('/api/admin/users', {
+      query: { q: TEST_DOMAIN, limit: 500 },
+    })
+    // The search matches the term anywhere, including in a display name, so the
+    // count is taken from the address itself — the same suffix rule the server
+    // deletes by.
+    const matches = res.users.filter(u => u.email.toLowerCase().endsWith(TEST_DOMAIN))
+    purgeCount.value = matches.length
+    // The listing is capped, so a full page means "at least this many".
+    purgeCapped.value = res.users.length >= 500
+  } catch (e) {
+    usersError.value = failed(e, 'Could not count the test accounts')
+  } finally {
+    purging.value = false
+  }
+}
+
+async function purgeTestAccounts() {
+  purging.value = true
+  usersError.value = ''
+  try {
+    const res = await $fetch<{ deleted: number, failed: string[] }>('/api/admin/test-accounts', {
+      method: 'DELETE',
+    })
+    if (res.failed.length) usersError.value = `Could not delete: ${res.failed.join(', ')}`
+    purgeCount.value = null
+    await loadUsers()
+  } catch (e) {
+    usersError.value = failed(e, 'Could not delete the test accounts')
+  } finally {
+    purging.value = false
+  }
+}
+
 const maxActive = computed(() => Math.max(1, ...(stats.value?.activeSeries.map(d => d.value) ?? [0])))
 function pct(value: number, list: Bucket[]) {
   const max = Math.max(1, ...list.map(b => b.value))
@@ -441,6 +489,30 @@ function expiryLabel(expires: number) {
             class="w-full max-w-md"
           />
           <span v-if="users.length" class="text-xs text-white/40">showing {{ users.length }}</span>
+
+          <div class="ms-auto flex items-center gap-2">
+            <UButton
+              v-if="purgeCount === null"
+              color="error" variant="ghost" size="sm" icon="i-lucide-eraser"
+              label="Delete test accounts"
+              title="Every account whose e-mail ends in @example.com"
+              :loading="purging"
+              @click="countTestAccounts"
+            />
+            <template v-else-if="purgeCount === 0">
+              <span class="text-xs text-white/40">No {{ TEST_DOMAIN }} accounts.</span>
+              <UButton color="neutral" variant="ghost" size="sm" label="OK" @click="purgeCount = null" />
+            </template>
+            <template v-else>
+              <UButton
+                color="error" size="sm" icon="i-lucide-triangle-alert"
+                :label="`Delete ${purgeCount}${purgeCapped ? '+' : ''} ${TEST_DOMAIN} account(s) for good?`"
+                :loading="purging"
+                @click="purgeTestAccounts"
+              />
+              <UButton color="neutral" variant="ghost" size="sm" label="Cancel" @click="purgeCount = null" />
+            </template>
+          </div>
         </div>
 
         <p v-if="usersError" class="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-300">{{ usersError }}</p>
