@@ -15,6 +15,9 @@ export default defineNuxtConfig({
   //                          once both of its values are set. Callback URL is
   //                          <site>/api/auth/callback/<provider>.
   //   R2_* — Cloudflare R2 bucket for avatar uploads (see .env.example)
+  //   DISCORD_BOT_TOKEN / DISCORD_GUILD_ID — the admin panel's Discord tab.
+  //                          Read straight from process.env (see secrets.ts for
+  //                          why that matters), so no runtimeConfig entry.
   //   TURNSTILE_SITE_KEY / TURNSTILE_SECRET_KEY — captcha on sign-up/-in/reset
   runtimeConfig: {
     adminToken: process.env.ADMIN_TOKEN || '',

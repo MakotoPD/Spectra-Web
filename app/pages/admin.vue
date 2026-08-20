@@ -108,7 +108,7 @@ interface AdminUser {
   shares: number
 }
 
-const tab = ref<'telemetry' | 'users'>('telemetry')
+const tab = ref<'telemetry' | 'users' | 'discord'>('telemetry')
 const users = ref<AdminUser[]>([])
 const usersTotal = ref(0)
 const userSearch = ref('')
@@ -157,8 +157,13 @@ onBeforeUnmount(() => clearTimeout(searchTimer))
 
 // Fetched when the tab is first opened rather than on load — most visits here
 // are for the charts.
+const discordPanel = ref<{ reload: () => void } | null>(null)
+/** Mounts the Discord panel on first open, then keeps it mounted (v-show). */
+const discordOpened = ref(false)
+
 watch(tab, (to) => {
   if (to === 'users' && !users.value.length) loadUsers()
+  if (to === 'discord') discordOpened.value = true
 })
 
 function startEdit(u: AdminUser) {
@@ -234,6 +239,7 @@ async function countTestAccounts() {
   }
 }
 
+
 async function purgeTestAccounts() {
   purging.value = true
   usersError.value = ''
@@ -305,15 +311,18 @@ function expiryLabel(expires: number) {
     <div v-else-if="stats" class="space-y-8">
       <div class="flex items-center justify-between">
         <div>
-          <h1 class="text-2xl font-bold tracking-tight">{{ tab === 'users' ? 'Users' : 'Telemetry' }}</h1>
+          <h1 class="text-2xl font-bold tracking-tight">
+            {{ tab === 'users' ? 'Users' : tab === 'discord' ? 'Discord' : 'Telemetry' }}
+          </h1>
           <p v-if="tab === 'telemetry'" class="text-sm text-white/50">Last 30 days · updated {{ new Date(stats.generatedAt).toLocaleString() }}</p>
-          <p v-else class="text-sm text-white/50">{{ usersTotal.toLocaleString() }} accounts</p>
+          <p v-else-if="tab === 'users'" class="text-sm text-white/50">{{ usersTotal.toLocaleString() }} accounts</p>
+          <p v-else class="text-sm text-white/50">Server, messages, moderation and tickets</p>
         </div>
         <div class="flex gap-2">
           <UButton
             color="neutral" variant="ghost" icon="i-lucide-refresh-cw" label="Refresh"
             :loading="tab === 'users' && usersLoading"
-            @click="tab === 'users' ? loadUsers() : loadStats()"
+            @click="tab === 'users' ? loadUsers() : tab === 'discord' ? discordPanel?.reload() : loadStats()"
           />
           <UButton color="neutral" variant="soft" icon="i-lucide-log-out" label="Sign out" @click="logout" />
         </div>
@@ -324,6 +333,7 @@ function expiryLabel(expires: number) {
           v-for="t in ([
             { id: 'telemetry', label: 'Telemetry', icon: 'i-lucide-chart-line' },
             { id: 'users', label: 'Users', icon: 'i-lucide-users' },
+            { id: 'discord', label: 'Discord', icon: 'i-simple-icons-discord' },
           ] as const)"
           :key="t.id"
           type="button"
@@ -610,6 +620,13 @@ function expiryLabel(expires: number) {
             </table>
           </div>
         </UCard>
+      </div>
+
+      <!-- discord -->
+      <!-- Kept mounted so switching tabs does not throw away a half-typed
+           message or a loaded transcript. -->
+      <div v-show="tab === 'discord'">
+        <AdminDiscord v-if="discordOpened" ref="discordPanel" @unauthorized="authed = false" />
       </div>
     </div>
   </section>
