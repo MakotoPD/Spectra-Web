@@ -45,6 +45,65 @@ watch(user, (u) => {
 
 const avatar = computed(() => initialsAvatar(profile.username || profile.name))
 
+// --- username availability -------------------------------------------------
+// The rules restated here are better-auth's username plugin: 3–30 characters of
+// a–z, 0–9, dot or underscore, compared case-insensitively. The server enforces
+// them again on save — this only exists so a taken name is not discovered by
+// pressing Save.
+const USERNAME_SHAPE = /^[a-zA-Z0-9_.]+$/
+type UsernameState = 'idle' | 'checking' | 'available' | 'taken' | 'invalid'
+const usernameState = ref<UsernameState>('idle')
+const usernameBlocked = computed(() => usernameState.value === 'taken' || usernameState.value === 'invalid')
+
+let checkTimer: ReturnType<typeof setTimeout> | undefined
+// Every check carries a number; only the newest one is allowed to publish its
+// answer, so a slow reply to an old keystroke cannot overwrite a fresh one.
+let latestCheck = 0
+
+watch(() => profile.username, (value) => {
+  clearTimeout(checkTimer)
+  const username = value.trim()
+  latestCheck++
+
+  // Their own username is not "taken": the endpoint only reports that some row
+  // holds it, and for an unchanged field that row is theirs.
+  if (!username || username.toLowerCase() === (user.value?.username ?? '').toLowerCase()) {
+    usernameState.value = 'idle'
+    return
+  }
+  if (username.length < 3 || username.length > 30 || !USERNAME_SHAPE.test(username)) {
+    usernameState.value = 'invalid'
+    return
+  }
+
+  usernameState.value = 'checking'
+  const token = latestCheck
+  checkTimer = setTimeout(async () => {
+    try {
+      const res = await $fetch<{ available: boolean }>('/api/auth/is-username-available', {
+        method: 'POST',
+        body: { username },
+      })
+      if (token === latestCheck) usernameState.value = res.available ? 'available' : 'taken'
+    } catch {
+      // The endpoint rejects anything it considers malformed, which at this
+      // point means a rule the check above does not know about.
+      if (token === latestCheck) usernameState.value = 'invalid'
+    }
+  }, 400)
+})
+
+onBeforeUnmount(() => clearTimeout(checkTimer))
+
+const USERNAME_MESSAGES: Record<Exclude<UsernameState, 'idle'>, string> = {
+  checking: 'account.usernameChecking',
+  available: 'account.usernameAvailable',
+  taken: 'account.usernameTaken',
+  invalid: 'account.usernameInvalid',
+}
+const usernameMessage = computed(() =>
+  usernameState.value === 'idle' ? '' : t(USERNAME_MESSAGES[usernameState.value]))
+
 // --- avatar upload ---------------------------------------------------------
 // Downscaled here rather than on the server: a 256px WebP is ~20 KB, so the
 // upload is instant and the backend never needs an image library.
@@ -99,6 +158,12 @@ async function uploadAvatar(event: Event) {
 }
 
 const saveProfile = () => run('profile', async () => {
+  // The button is disabled in this state; this catches the race where the
+  // answer lands between the click and the request.
+  if (usernameBlocked.value) {
+    error.value = t('account.usernameFix')
+    return
+  }
   const res = await auth.updateUser({
     name: profile.name,
     image: profile.image || null,
@@ -346,6 +411,23 @@ const BTN_GHOST = 'inline-flex items-center justify-center gap-2 rounded-xl bord
           <div>
             <label :class="LABEL">{{ $t('auth.username') }}</label>
             <input v-model="profile.username" :class="FIELD" autocomplete="username">
+            <p
+              v-if="usernameState !== 'idle'"
+              class="mt-1.5 flex items-center gap-1.5 text-[12px]"
+              :class="{
+                'text-white/35': usernameState === 'checking',
+                'text-emerald-300/90': usernameState === 'available',
+                'text-red-300/90': usernameBlocked,
+              }"
+            >
+              <UIcon
+                :name="usernameState === 'checking' ? 'i-lucide-loader-circle'
+                  : usernameState === 'available' ? 'i-lucide-check' : 'i-lucide-x'"
+                class="size-3.5 shrink-0"
+                :class="usernameState === 'checking' && 'animate-spin'"
+              />
+              {{ usernameMessage }}
+            </p>
           </div>
           <div>
             <label :class="LABEL">{{ $t('account.displayName') }}</label>
@@ -367,7 +449,7 @@ const BTN_GHOST = 'inline-flex items-center justify-center gap-2 rounded-xl bord
           type="button"
           :class="BTN + ' mt-5'"
           :style="BTN_STYLE"
-          :disabled="busy === 'profile'"
+          :disabled="busy === 'profile' || usernameBlocked"
           @click="saveProfile"
         >{{ busy === 'profile' ? $t('auth.working') : $t('account.save') }}</button>
       </section>

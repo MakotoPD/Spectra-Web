@@ -261,7 +261,12 @@
     "verified": "Verified",
     "on": "On",
     "off": "Off",
-    "linked": "Connected"
+    "linked": "Connected",
+    "usernameChecking": "Checking availability…",
+    "usernameAvailable": "That username is free.",
+    "usernameTaken": "That username is already taken.",
+    "usernameInvalid": "3–30 characters: letters, numbers, dot or underscore.",
+    "usernameFix": "Pick a different username first."
   },
   "friends": {
     "title": "Friends",

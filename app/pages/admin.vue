@@ -83,9 +83,125 @@ async function logout() {
   await $fetch('/api/admin/logout', { method: 'POST' })
   authed.value = false
   stats.value = null
+  // Account rows are the most sensitive thing this page holds — they do not
+  // stay in memory behind a signed-out screen.
+  users.value = []
 }
 
 onMounted(loadStats)
+
+// --- users -----------------------------------------------------------------
+// Accounts, not telemetry: this half talks to /api/admin/users and is the only
+// place display names, usernames and ban state can be changed by hand.
+interface AdminUser {
+  id: string
+  name: string | null
+  username: string | null
+  email: string
+  image: string | null
+  emailVerified: boolean
+  banned: boolean
+  mcUsername: string | null
+  createdAt: number
+  lastSeen: number | null
+  friends: number
+  shares: number
+}
+
+const tab = ref<'telemetry' | 'users'>('telemetry')
+const users = ref<AdminUser[]>([])
+const usersTotal = ref(0)
+const userSearch = ref('')
+const usersLoading = ref(false)
+const usersError = ref('')
+/** Id of the row with a request in flight, so only its buttons go quiet. */
+const rowBusy = ref('')
+const editing = ref<string | null>(null)
+const draft = reactive({ name: '', username: '' })
+/** Deleting an account cannot be undone, so the button asks twice. */
+const confirmDelete = ref<string | null>(null)
+
+function failed(e: unknown, fallback: string) {
+  const err = e as { statusCode?: number, statusMessage?: string, data?: { message?: string } }
+  // The session can expire while the panel is open; say so rather than
+  // reporting it as a broken endpoint.
+  if (err?.statusCode === 401) {
+    authed.value = false
+    return ''
+  }
+  return err?.data?.message || err?.statusMessage || fallback
+}
+
+async function loadUsers() {
+  usersLoading.value = true
+  usersError.value = ''
+  try {
+    const res = await $fetch<{ total: number, users: AdminUser[] }>('/api/admin/users', {
+      query: { q: userSearch.value },
+    })
+    users.value = res.users
+    usersTotal.value = res.total
+  } catch (e) {
+    usersError.value = failed(e, 'Could not load users')
+  } finally {
+    usersLoading.value = false
+  }
+}
+
+let searchTimer: ReturnType<typeof setTimeout> | undefined
+watch(userSearch, () => {
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(loadUsers, 300)
+})
+onBeforeUnmount(() => clearTimeout(searchTimer))
+
+// Fetched when the tab is first opened rather than on load — most visits here
+// are for the charts.
+watch(tab, (to) => {
+  if (to === 'users' && !users.value.length) loadUsers()
+})
+
+function startEdit(u: AdminUser) {
+  editing.value = u.id
+  draft.name = u.name ?? ''
+  draft.username = u.username ?? ''
+}
+
+async function patchUser(id: string, body: Record<string, unknown>) {
+  rowBusy.value = id
+  usersError.value = ''
+  try {
+    await $fetch(`/api/admin/users/${id}`, { method: 'PATCH', body })
+    await loadUsers()
+    return true
+  } catch (e) {
+    // A taken username or a malformed one lands here with the reason attached.
+    usersError.value = failed(e, 'Could not save the changes')
+    return false
+  } finally {
+    rowBusy.value = ''
+  }
+}
+
+async function saveEdit(id: string) {
+  if (await patchUser(id, { name: draft.name, username: draft.username })) editing.value = null
+}
+
+async function removeUser(id: string) {
+  rowBusy.value = id
+  usersError.value = ''
+  try {
+    await $fetch(`/api/admin/users/${id}`, { method: 'DELETE' })
+    confirmDelete.value = null
+    await loadUsers()
+  } catch (e) {
+    usersError.value = failed(e, 'Could not delete the account')
+  } finally {
+    rowBusy.value = ''
+  }
+}
+
+const shortDate = (ms: number) => new Date(ms).toLocaleDateString()
 
 const maxActive = computed(() => Math.max(1, ...(stats.value?.activeSeries.map(d => d.value) ?? [0])))
 function pct(value: number, list: Bucket[]) {
@@ -141,16 +257,40 @@ function expiryLabel(expires: number) {
     <div v-else-if="stats" class="space-y-8">
       <div class="flex items-center justify-between">
         <div>
-          <h1 class="text-2xl font-bold tracking-tight">Telemetry</h1>
-          <p class="text-sm text-white/50">Last 30 days · updated {{ new Date(stats.generatedAt).toLocaleString() }}</p>
+          <h1 class="text-2xl font-bold tracking-tight">{{ tab === 'users' ? 'Users' : 'Telemetry' }}</h1>
+          <p v-if="tab === 'telemetry'" class="text-sm text-white/50">Last 30 days · updated {{ new Date(stats.generatedAt).toLocaleString() }}</p>
+          <p v-else class="text-sm text-white/50">{{ usersTotal.toLocaleString() }} accounts</p>
         </div>
         <div class="flex gap-2">
-          <UButton color="neutral" variant="ghost" icon="i-lucide-refresh-cw" label="Refresh" @click="loadStats" />
+          <UButton
+            color="neutral" variant="ghost" icon="i-lucide-refresh-cw" label="Refresh"
+            :loading="tab === 'users' && usersLoading"
+            @click="tab === 'users' ? loadUsers() : loadStats()"
+          />
           <UButton color="neutral" variant="soft" icon="i-lucide-log-out" label="Sign out" @click="logout" />
         </div>
       </div>
 
-      <!-- overview cards -->
+      <div class="flex gap-1 border-b border-white/8">
+        <button
+          v-for="t in ([
+            { id: 'telemetry', label: 'Telemetry', icon: 'i-lucide-chart-line' },
+            { id: 'users', label: 'Users', icon: 'i-lucide-users' },
+          ] as const)"
+          :key="t.id"
+          type="button"
+          class="-mb-px flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition"
+          :class="tab === t.id
+            ? 'border-primary-400 text-white'
+            : 'border-transparent text-white/45 hover:text-white/70'"
+          @click="tab = t.id"
+        >
+          <UIcon :name="t.icon" class="size-4" />{{ t.label }}
+        </button>
+      </div>
+
+      <div v-show="tab === 'telemetry'" class="space-y-8">
+        <!-- overview cards -->
       <div class="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
         <UCard v-for="card in [
           { label: 'Installs (all time)', value: stats.overview.totalInstalls },
@@ -283,6 +423,116 @@ function expiryLabel(expires: number) {
                   <td class="py-2 pr-3 text-right font-mono text-xs">{{ bytes(row.size) }}</td>
                   <td class="py-2 pr-3 text-right font-mono text-xs">{{ row.downloads }}</td>
                   <td class="py-2 text-right font-mono text-xs text-white/50">{{ expiryLabel(row.expires) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </UCard>
+        </div>
+      </div>
+
+      <!-- users -->
+      <div v-show="tab === 'users'" class="space-y-4">
+        <div class="flex flex-wrap items-center gap-3">
+          <UInput
+            v-model="userSearch"
+            icon="i-lucide-search"
+            placeholder="Search name, username, e-mail or MC name…"
+            class="w-full max-w-md"
+          />
+          <span v-if="users.length" class="text-xs text-white/40">showing {{ users.length }}</span>
+        </div>
+
+        <p v-if="usersError" class="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-300">{{ usersError }}</p>
+
+        <UCard :ui="{ body: 'p-0' }">
+          <p v-if="!users.length && !usersLoading" class="p-6 text-sm text-white/40">
+            {{ userSearch ? 'Nobody matches that.' : 'No accounts yet.' }}
+          </p>
+          <div v-else class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="text-left text-xs text-white/40">
+                <tr>
+                  <th class="p-3 font-medium">Account</th>
+                  <th class="p-3 font-medium">E-mail</th>
+                  <th class="p-3 font-medium">Minecraft</th>
+                  <th class="p-3 text-right font-medium">Friends</th>
+                  <th class="p-3 text-right font-medium">Shares</th>
+                  <th class="p-3 font-medium">Joined</th>
+                  <th class="p-3 text-right font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="u in users"
+                  :key="u.id"
+                  class="border-t border-white/6 align-top"
+                  :class="u.banned && 'bg-red-500/5'"
+                >
+                  <td class="p-3">
+                    <div class="flex items-start gap-3">
+                      <img v-if="u.image" :src="u.image" alt="" class="size-8 shrink-0 rounded-full object-cover">
+                      <span
+                        v-else
+                        class="flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-bold"
+                        :style="`background:hsl(${initialsAvatar(u.username || u.name).hue} 60% 30%)`"
+                      >{{ initialsAvatar(u.username || u.name).letter }}</span>
+
+                      <div v-if="editing === u.id" class="space-y-1.5">
+                        <UInput v-model="draft.name" size="xs" placeholder="Display name" />
+                        <UInput v-model="draft.username" size="xs" placeholder="username" />
+                      </div>
+                      <div v-else class="min-w-0">
+                        <div class="flex items-center gap-1.5 truncate font-medium">
+                          {{ u.name || '—' }}
+                          <UIcon v-if="u.banned" name="i-lucide-ban" class="size-3.5 shrink-0 text-red-400" title="Banned" />
+                        </div>
+                        <div class="truncate text-xs text-white/45">@{{ u.username || '—' }}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="p-3">
+                    <div class="truncate text-xs">{{ u.email }}</div>
+                    <div v-if="!u.emailVerified" class="text-[11px] text-amber-300/70">unverified</div>
+                  </td>
+                  <td class="p-3 text-xs text-white/60">{{ u.mcUsername || '—' }}</td>
+                  <td class="p-3 text-right font-mono text-xs">{{ u.friends }}</td>
+                  <td class="p-3 text-right font-mono text-xs">{{ u.shares }}</td>
+                  <td class="p-3 text-xs text-white/50">{{ shortDate(u.createdAt) }}</td>
+                  <td class="p-3">
+                    <div class="flex flex-wrap justify-end gap-1.5">
+                      <template v-if="editing === u.id">
+                        <UButton size="xs" icon="i-lucide-check" label="Save" :loading="rowBusy === u.id" @click="saveEdit(u.id)" />
+                        <UButton size="xs" color="neutral" variant="ghost" label="Cancel" @click="editing = null" />
+                      </template>
+                      <template v-else>
+                        <UButton
+                          size="xs" color="neutral" variant="soft" icon="i-lucide-pencil"
+                          title="Edit name and username" @click="startEdit(u)"
+                        />
+                        <UButton
+                          size="xs" variant="soft"
+                          :color="u.banned ? 'success' : 'warning'"
+                          :icon="u.banned ? 'i-lucide-check-circle' : 'i-lucide-ban'"
+                          :title="u.banned ? 'Lift the ban' : 'Ban this account'"
+                          :loading="rowBusy === u.id"
+                          @click="patchUser(u.id, { banned: !u.banned })"
+                        />
+                        <UButton
+                          v-if="confirmDelete === u.id"
+                          size="xs" color="error" label="Delete for good?"
+                          :loading="rowBusy === u.id"
+                          @click="removeUser(u.id)"
+                        />
+                        <UButton
+                          v-else
+                          size="xs" color="error" variant="soft" icon="i-lucide-trash-2"
+                          title="Delete this account"
+                          @click="confirmDelete = u.id"
+                        />
+                      </template>
+                    </div>
+                  </td>
                 </tr>
               </tbody>
             </table>

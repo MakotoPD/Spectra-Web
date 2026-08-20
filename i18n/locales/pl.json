@@ -261,7 +261,12 @@
     "verified": "Potwierdzony",
     "on": "Włączona",
     "off": "Wyłączona",
-    "linked": "Połączone"
+    "linked": "Połączone",
+    "usernameChecking": "Sprawdzam dostępność…",
+    "usernameAvailable": "Ta nazwa jest wolna.",
+    "usernameTaken": "Ta nazwa jest już zajęta.",
+    "usernameInvalid": "3–30 znaków: litery, cyfry, kropka lub podkreślnik.",
+    "usernameFix": "Najpierw wybierz inną nazwę użytkownika."
   },
   "friends": {
     "title": "Znajomi",

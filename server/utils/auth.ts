@@ -14,6 +14,7 @@ import { betterAuth } from 'better-auth'
 import { bearer, captcha, oneTimeToken, twoFactor, username } from 'better-auth/plugins'
 
 import { usePool } from './db'
+import { uniqueUsername } from './username'
 
 let auth: ReturnType<typeof betterAuth> | null = null
 
@@ -212,6 +213,34 @@ export function useAuth() {
         presence: { type: 'string', required: false, input: false },
         lastSeen: { type: 'number', required: false, input: false },
         playing: { type: 'boolean', required: false, input: false },
+        // Set from the admin panel only. `requireUser` turns it into a 403, and
+        // banning also drops the account's sessions so it takes effect at once
+        // rather than whenever the current one happens to expire.
+        banned: { type: 'boolean', required: false, input: false },
+      },
+    },
+    databaseHooks: {
+      user: {
+        create: {
+          async before(user) {
+            // A provider signup carries name, email and image and nothing else,
+            // so `username` would stay null — leaving the account without a
+            // public profile and unfindable in the friend search.
+            //
+            // The username plugin registers its own create.before hook, but
+            // hooks run in order with the plugins first, and its hook only
+            // normalises a username that is already present. By the time this
+            // runs, nothing downstream will touch the value again — so what is
+            // returned here has to be final: already lowercased, already free.
+            const candidate = user as { username?: string | null, name?: string | null, email?: string }
+            if (candidate.username) return
+
+            const username = await uniqueUsername(
+              candidate.name || candidate.email?.split('@')[0] || 'player')
+            // Only the changed keys — the hook runner merges onto the rest.
+            return { data: { username, displayUsername: username } }
+          },
+        },
       },
     },
     socialProviders: socialProviders(),
@@ -245,6 +274,12 @@ export function useAuth() {
 export async function requireUser(event: H3Event) {
   const session = await useAuth().api.getSession({ headers: event.headers })
   if (!session?.user) throw createError({ statusCode: 401, statusMessage: 'sign in first' })
+  // Banning drops the sessions too, so this is the belt to that braces: a
+  // token minted before the ban, or a session created by some path that
+  // outruns the delete, still gets nowhere.
+  if ((session.user as { banned?: boolean }).banned) {
+    throw createError({ statusCode: 403, statusMessage: 'account suspended' })
+  }
   return session.user
 }
 

@@ -16,12 +16,6 @@ function groupExpr(expr: string): string {
   return expr
 }
 
-function requireAdmin(event: import('h3').H3Event) {
-  if (!tokenOk(getCookie(event, 'spectra_admin'), adminToken())) {
-    throw createError({ statusCode: 401, statusMessage: 'unauthorized' })
-  }
-}
-
 /** Distinct installs grouped by a column/expression, top N. */
 function distinctInstallsBy(name: string, since: string, limit = 8) {
   const expr = groupExpr(name)
