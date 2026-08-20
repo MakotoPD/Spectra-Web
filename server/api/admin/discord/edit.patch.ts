@@ -10,28 +10,42 @@ export default defineEventHandler(async (event) => {
   requireAdmin(event)
   const cfg = requireDiscord()
 
-  const body = await readBody<{ channelId?: string, messageId?: string, content?: string }>(event) ?? {}
-  const channelId = String(body.channelId ?? '')
-  const messageId = String(body.messageId ?? '')
+  const body = await readBody<{
+    channelId?: string
+    messageId?: string
+    content?: string
+    embeds?: unknown
+    components?: unknown
+  }>(event) ?? {}
+
+  const channelId = requireSnowflake(body.channelId, 'channelId')
+  const messageId = requireSnowflake(body.messageId, 'messageId')
   const content = String(body.content ?? '').trim()
 
-  if (!/^\d{17,20}$/.test(channelId) || !/^\d{17,20}$/.test(messageId)) {
-    throw createError({ statusCode: 400, statusMessage: 'a channel id and a message id are required' })
-  }
-  if (!content) throw createError({ statusCode: 400, statusMessage: 'the message is empty' })
   if (content.length > MAX_CONTENT) {
     throw createError({
       statusCode: 400,
-      statusMessage: `too long — ${content.length} characters, Discord allows ${MAX_CONTENT}`,
+      statusMessage: `message is ${content.length} characters, Discord allows ${MAX_CONTENT}`,
     })
   }
 
+  const embeds = cleanEmbeds(body.embeds)
+  const components = cleanComponents(body.components)
+
+  if (!content && !embeds.length) {
+    throw createError({ statusCode: 400, statusMessage: 'add some text or an embed' })
+  }
+
+  // Sent even when empty, unlike on create: omitting a key on a PATCH leaves it
+  // as it was, so clearing the embeds off a message needs an explicit [].
   await discordRequest(cfg, 'PATCH', `/channels/${channelId}/messages/${messageId}`, {
-    content,
+    content: content || null,
+    embeds,
+    components,
     // An edit that suddenly pings everyone would be a nasty surprise, and
-    // Discord does re-notify on newly added mentions.
+    // Discord does re-notify on mentions an edit newly introduces.
     allowed_mentions: { parse: [] },
   })
 
-  return { ok: true }
+  return { ok: true, unhandled: unhandledCustomIds(components) }
 })

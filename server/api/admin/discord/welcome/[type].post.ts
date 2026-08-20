@@ -23,7 +23,21 @@ export default defineEventHandler(async (event) => {
   const channelId = body.channelId ? requireSnowflake(body.channelId, 'channelId') : null
   const messageType = MESSAGE_TYPES.has(String(body.messageType)) ? String(body.messageType) : 'text'
   const content = String(body.content ?? '').slice(0, 2000)
-  const embed = body.embed && typeof body.embed === 'object' ? body.embed : {}
+
+  // Stored in Discord's own shape — colour as an integer, image as `{ url }` —
+  // rather than as the builder's draft, so the bot sends what is in the column
+  // instead of translating it on every join. Also where the limits are checked:
+  // a welcome that Discord refuses fails silently at 3am, once per new member.
+  const [embed = {}] = cleanEmbeds([body.embed])
+
+  // The variables are substituted at send time, so an embed that is only a
+  // template still has to count as having content.
+  if (enabled && messageType === 'embed' && !Object.keys(embed).length) {
+    throw createError({ statusCode: 400, statusMessage: 'the embed is empty' })
+  }
+  if (enabled && messageType === 'text' && !content.trim()) {
+    throw createError({ statusCode: 400, statusMessage: 'the message is empty' })
+  }
 
   // Turning it on without somewhere to post it is the one combination that
   // silently does nothing, so it is refused rather than saved.

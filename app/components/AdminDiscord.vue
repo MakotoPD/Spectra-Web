@@ -9,6 +9,9 @@
 // Split out of admin.vue because it is six screens' worth of state; the page
 // itself only decides which tab is showing.
 
+import type { EmbedDraft } from './DiscordEmbedBuilder.vue'
+import type { RowDraft } from './DiscordComponentsBuilder.vue'
+
 const emit = defineEmits<{ unauthorized: [] }>()
 
 type Pane = 'overview' | 'messages' | 'moderation' | 'welcome' | 'tickets' | 'config'
@@ -103,7 +106,7 @@ interface DiscordMessage {
   id: string
   content: string
   embeds: unknown[]
-  hasComponents: boolean
+  components: unknown[]
   timestamp: string
   editedAt: string | null
 }
@@ -112,6 +115,22 @@ const messages = ref<DiscordMessage[]>([])
 const draft = ref('')
 const allowMentions = ref(false)
 const editingId = ref<string | null>(null)
+
+// The builder's half of the composer. Embeds and rows are arrays because
+// Discord allows several of each on one message.
+const msgEmbeds = ref<EmbedDraft[]>([])
+const msgRows = ref<RowDraft[]>([])
+/** Which of the three the composer is showing — all three feed one message. */
+const composer = ref<'text' | 'embeds' | 'buttons'>('text')
+
+const MAX_EMBEDS = 10
+/** Discord counts this across every embed on the message, not per embed. */
+const EMBED_BUDGET = 6000
+const embedCharacters = computed(() => msgEmbeds.value.reduce((sum, e) =>
+  sum + e.title.length + e.description.length + e.author.name.length + e.footer.text.length
+  + e.fields.reduce((s, f) => s + f.name.length + f.value.length, 0), 0))
+
+const composerEmpty = computed(() => !draft.value.trim() && !msgEmbeds.value.length)
 
 const msgChannelName = computed(() => channels.value.find(c => c.id === msgChannelId.value)?.name ?? '')
 
@@ -126,33 +145,54 @@ async function loadMessages() {
 }
 watch(msgChannelId, loadMessages)
 
+/** Loads an existing message back into the composer, turning Send into Save. */
 function startEditMessage(m: DiscordMessage) {
   editingId.value = m.id
   draft.value = m.content
+  msgEmbeds.value = (m.embeds ?? []).map(embedToDraft)
+  msgRows.value = componentsToDraft(m.components)
+  composer.value = msgEmbeds.value.length ? 'embeds' : 'text'
   notice.value = ''
 }
 
+function resetComposer() {
+  draft.value = ''
+  msgEmbeds.value = []
+  msgRows.value = []
+  editingId.value = null
+  allowMentions.value = false
+  composer.value = 'text'
+}
+
 async function submitMessage() {
-  const content = draft.value.trim()
-  if (!content || !msgChannelId.value) return
+  if (composerEmpty.value || !msgChannelId.value) return
   await run('send', async () => {
-    if (editingId.value) {
-      await $fetch('/api/admin/discord/edit', {
-        method: 'PATCH',
-        body: { channelId: msgChannelId.value, messageId: editingId.value, content },
-      })
-    } else {
-      await $fetch('/api/admin/discord/send', {
-        method: 'POST',
-        body: { channelId: msgChannelId.value, content, allowMentions: allowMentions.value },
-      })
+    const payload = {
+      channelId: msgChannelId.value,
+      content: draft.value.trim(),
+      embeds: msgEmbeds.value,
+      components: msgRows.value,
     }
+
+    const res = editingId.value
+      ? await $fetch<{ unhandled: string[] }>('/api/admin/discord/edit', {
+          method: 'PATCH',
+          body: { ...payload, messageId: editingId.value },
+        })
+      : await $fetch<{ unhandled: string[] }>('/api/admin/discord/send', {
+          method: 'POST',
+          body: { ...payload, allowMentions: allowMentions.value },
+        })
+
     const wasEdit = !!editingId.value
-    draft.value = ''
-    editingId.value = null
-    allowMentions.value = false
+    resetComposer()
     await loadMessages()
-    return wasEdit ? 'Message updated.' : `Posted to #${msgChannelName.value}.`
+
+    const sent = wasEdit ? 'Message updated.' : `Posted to #${msgChannelName.value}.`
+    // The message went out either way — this is the part worth knowing about.
+    return res.unhandled?.length
+      ? `${sent} Nothing handles ${res.unhandled.join(', ')} yet, so those buttons will fail when pressed.`
+      : sent
   })
 }
 
@@ -245,8 +285,7 @@ const welcome = reactive<WelcomeConfig>({
   enabled: false, channelId: '', messageType: 'text', content: '', embed: {},
 })
 const welcomeVars = ref<string[]>([])
-const embedText = ref('{}')
-const embedError = ref('')
+const welcomeEmbed = ref<EmbedDraft>(emptyEmbed())
 
 async function loadWelcome() {
   await run('welcome', async () => {
@@ -254,25 +293,36 @@ async function loadWelcome() {
       `/api/admin/discord/welcome/${welcomeType.value}`)
     Object.assign(welcome, res.config, { channelId: res.config.channelId ?? '' })
     welcomeVars.value = res.variables
-    embedText.value = JSON.stringify(res.config.embed ?? {}, null, 2)
-    embedError.value = ''
+    welcomeEmbed.value = embedToDraft(res.config.embed)
   })
 }
 watch(welcomeType, loadWelcome)
 
-// Parsed on every keystroke so a broken embed is caught while typing rather
-// than by the save button.
-watch(embedText, (value) => {
-  try {
-    JSON.parse(value || '{}')
-    embedError.value = ''
-  } catch (e) {
-    embedError.value = (e as Error).message
-  }
-})
+/**
+ * The preview substitutes the variables with sample values, because an embed
+ * reading "Welcome {mention} to {servername}" tells you nothing about whether
+ * the line will fit or how it will wrap.
+ */
+const SAMPLE_VARS: Record<string, string> = {
+  username: 'patryk', displayname: 'Patryk', mention: '@Patryk',
+  servername: 'Spectra', membercount: '412', id: '123456789012345678',
+  mcname: 'Notch', spectraname: 'makoto',
+}
+const fillVars = (text: string) =>
+  text.replace(/\{(\w+)\}/g, (whole, key) => SAMPLE_VARS[key] ?? whole)
+
+const welcomePreview = computed<EmbedDraft>(() => ({
+  ...welcomeEmbed.value,
+  title: fillVars(welcomeEmbed.value.title),
+  description: fillVars(welcomeEmbed.value.description),
+  author: { ...welcomeEmbed.value.author, name: fillVars(welcomeEmbed.value.author.name) },
+  footer: { ...welcomeEmbed.value.footer, text: fillVars(welcomeEmbed.value.footer.text) },
+  fields: welcomeEmbed.value.fields.map(f => ({
+    ...f, name: fillVars(f.name), value: fillVars(f.value),
+  })),
+}))
 
 async function saveWelcome() {
-  if (embedError.value) return
   await run('save-welcome', async () => {
     await $fetch(`/api/admin/discord/welcome/${welcomeType.value}`, {
       method: 'POST',
@@ -281,7 +331,7 @@ async function saveWelcome() {
         channelId: welcome.channelId || null,
         messageType: welcome.messageType,
         content: welcome.content,
-        embed: JSON.parse(embedText.value || '{}'),
+        embed: welcomeEmbed.value,
       },
     })
     return 'Saved. The bot picks this up on the next join.'
@@ -458,20 +508,86 @@ const roleName = (id: string) => roles.value.find(r => r.id === id)?.name ?? id
           </template>
           <div class="space-y-3">
             <USelect v-model="msgChannelId" :items="channelItems" placeholder="Pick a channel…" class="w-full max-w-md" />
-            <UTextarea v-model="draft" :rows="5" :maxlength="2000" placeholder="What should the bot say?" class="w-full" />
-            <div class="flex flex-wrap items-center gap-3">
+
+            <div class="grid gap-4 lg:grid-cols-2">
+              <!-- editor -->
+              <div class="space-y-3">
+                <div class="flex gap-1 rounded-lg bg-white/[0.03] p-1">
+                  <button
+                    v-for="mode in ([
+                      { id: 'text', label: 'Text', badge: draft.length ? String(draft.length) : '' },
+                      { id: 'embeds', label: 'Embeds', badge: msgEmbeds.length ? String(msgEmbeds.length) : '' },
+                      { id: 'buttons', label: 'Buttons', badge: msgRows.length ? String(msgRows.length) : '' },
+                    ] as const)"
+                    :key="mode.id"
+                    type="button"
+                    class="flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition"
+                    :class="composer === mode.id ? 'bg-white/10 text-white' : 'text-white/45 hover:text-white/70'"
+                    @click="composer = mode.id"
+                  >
+                    {{ mode.label }}
+                    <span v-if="mode.badge" class="rounded bg-white/10 px-1 text-[10px]">{{ mode.badge }}</span>
+                  </button>
+                </div>
+
+                <template v-if="composer === 'text'">
+                  <UTextarea v-model="draft" :rows="8" :maxlength="2000" placeholder="What should the bot say? Markdown works." class="w-full" />
+                  <p class="text-right font-mono text-[11px] text-white/35">{{ draft.length }}/2000</p>
+                </template>
+
+                <template v-else-if="composer === 'embeds'">
+                  <div v-for="(embed, i) in msgEmbeds" :key="i" class="rounded-lg border border-white/8 p-3">
+                    <div class="mb-2 flex items-center gap-2">
+                      <span class="text-sm font-medium">Embed {{ i + 1 }}</span>
+                      <UButton
+                        class="ms-auto" size="xs" color="error" variant="ghost" icon="i-lucide-trash-2"
+                        @click="msgEmbeds.splice(i, 1)"
+                      />
+                    </div>
+                    <DiscordEmbedBuilder v-model="msgEmbeds[i]!" />
+                  </div>
+
+                  <div class="flex items-center gap-3">
+                    <UButton
+                      size="xs" color="neutral" variant="soft" icon="i-lucide-plus"
+                      :label="`Add embed (${msgEmbeds.length}/${MAX_EMBEDS})`"
+                      :disabled="msgEmbeds.length >= MAX_EMBEDS"
+                      @click="msgEmbeds.push(emptyEmbed())"
+                    />
+                    <!-- The 6000 is a whole-message budget; running past it is
+                         the failure people hit last, after everything else fits. -->
+                    <span
+                      class="ms-auto font-mono text-[11px]"
+                      :class="embedCharacters > EMBED_BUDGET ? 'text-red-300' : 'text-white/35'"
+                    >{{ embedCharacters }}/{{ EMBED_BUDGET }}</span>
+                  </div>
+                </template>
+
+                <DiscordComponentsBuilder v-else v-model="msgRows" />
+              </div>
+
+              <!-- preview -->
+              <div class="space-y-2">
+                <p class="text-[11px] uppercase tracking-wide text-white/35">Preview</p>
+                <DiscordMessagePreview
+                  :content="draft" :embeds="msgEmbeds" :components="msgRows"
+                  :bot-name="stats?.bot?.username"
+                />
+              </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-3 border-t border-white/8 pt-3">
               <UButton
                 :icon="editingId ? 'i-lucide-save' : 'i-lucide-send'"
                 :label="editingId ? 'Save changes' : 'Send'"
-                :disabled="!draft.trim() || !msgChannelId"
+                :disabled="composerEmpty || !msgChannelId || embedCharacters > EMBED_BUDGET"
                 :loading="busy === 'send'"
                 @click="submitMessage"
               />
-              <UButton v-if="editingId" color="neutral" variant="ghost" label="Cancel" @click="editingId = null; draft = ''" />
+              <UButton v-if="editingId" color="neutral" variant="ghost" label="Cancel" @click="resetComposer" />
               <!-- Editing never re-pings: Discord notifies on mentions added by
                    an edit, which would surprise a whole channel at once. -->
               <UCheckbox v-if="!editingId" v-model="allowMentions" label="Allow @everyone and role pings" />
-              <span class="ms-auto font-mono text-xs text-white/35">{{ draft.length }}/2000</span>
             </div>
           </div>
         </UCard>
@@ -488,12 +604,14 @@ const roleName = (id: string) => roles.value.find(r => r.id === id)?.name ?? id
                 <p class="mt-1 text-[11px] text-white/35">
                   {{ whenIso(m.timestamp) }}<span v-if="m.editedAt"> · edited</span>
                   <span v-if="m.embeds.length"> · {{ m.embeds.length }} embed(s)</span>
-                  <span v-if="m.hasComponents"> · has buttons</span>
+                  <span v-if="m.components.length"> · {{ m.components.length }} button row(s)</span>
                 </p>
               </div>
+              <!-- Loads the whole message back into the builder now, embeds and
+                   buttons included, so an embed-only message is editable too. -->
               <UButton
                 size="xs" color="neutral" variant="soft" icon="i-lucide-pencil"
-                :disabled="!m.content" @click="startEditMessage(m)"
+                @click="startEditMessage(m)"
               />
             </li>
           </ul>
@@ -616,23 +734,44 @@ const roleName = (id: string) => roles.value.find(r => r.id === id)?.name ?? id
               />
             </div>
 
-            <template v-if="welcome.messageType === 'text'">
-              <UTextarea v-model="welcome.content" :rows="4" :maxlength="2000" class="w-full" placeholder="Welcome {mention} to {servername}!" />
-            </template>
-            <template v-else>
-              <label class="mb-1 block text-[11px] text-white/40">Embed JSON</label>
-              <UTextarea v-model="embedText" :rows="12" class="w-full font-mono text-xs" />
-              <p v-if="embedError" class="text-xs text-red-300">{{ embedError }}</p>
-            </template>
+            <div class="grid gap-4 lg:grid-cols-2">
+              <div>
+                <UTextarea
+                  v-if="welcome.messageType === 'text'"
+                  v-model="welcome.content" :rows="6" :maxlength="2000" class="w-full"
+                  placeholder="Welcome {mention} to {servername}!"
+                />
+                <DiscordEmbedBuilder v-else v-model="welcomeEmbed" />
+              </div>
+
+              <div class="space-y-2">
+                <p class="text-[11px] uppercase tracking-wide text-white/35">
+                  Preview — with sample values
+                </p>
+                <DiscordMessagePreview
+                  :content="welcome.messageType === 'text' ? fillVars(welcome.content) : ''"
+                  :embeds="welcome.messageType === 'embed' ? [welcomePreview] : []"
+                  :components="[]"
+                  :bot-name="stats?.bot?.username"
+                />
+              </div>
+            </div>
 
             <p class="text-[11px] text-white/40">
               Substituted by the bot when it sends:
-              <code v-for="v in welcomeVars" :key="v" class="me-1 rounded bg-white/8 px-1 py-0.5 font-mono">{{ v }}</code>
+              <button
+                v-for="v in welcomeVars" :key="v" type="button"
+                class="me-1 rounded bg-white/8 px-1 py-0.5 font-mono transition hover:bg-white/15 hover:text-white"
+                title="Append to the text"
+                @click="welcome.messageType === 'text'
+                  ? welcome.content += v
+                  : welcomeEmbed.description += v"
+              >{{ v }}</button>
             </p>
 
             <UButton
               icon="i-lucide-save" label="Save"
-              :disabled="!!embedError" :loading="busy === 'save-welcome'"
+              :loading="busy === 'save-welcome'"
               @click="saveWelcome"
             />
             <p class="text-[11px] text-white/35">

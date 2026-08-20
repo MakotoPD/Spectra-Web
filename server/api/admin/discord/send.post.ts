@@ -1,4 +1,4 @@
-// Posts a message to a channel as the bot.
+// Posts a message to a channel as the bot: text, embeds, buttons, or any mix.
 
 const MAX_CONTENT = 2000
 
@@ -9,27 +9,36 @@ export default defineEventHandler(async (event) => {
   const body = await readBody<{
     channelId?: string
     content?: string
+    embeds?: unknown
+    components?: unknown
     allowMentions?: boolean
   }>(event) ?? {}
-  const channelId = String(body.channelId ?? '')
+
+  const channelId = requireSnowflake(body.channelId, 'channelId')
   const content = String(body.content ?? '').trim()
 
-  if (!/^\d{17,20}$/.test(channelId)) {
-    throw createError({ statusCode: 400, statusMessage: 'a channel id is required' })
-  }
-  if (!content) throw createError({ statusCode: 400, statusMessage: 'the message is empty' })
-  // Discord's own limit. Checked here so an over-long message fails with a
-  // sentence rather than with a 400 full of API JSON.
   if (content.length > MAX_CONTENT) {
     throw createError({
       statusCode: 400,
-      statusMessage: `too long — ${content.length} characters, Discord allows ${MAX_CONTENT}`,
+      statusMessage: `message is ${content.length} characters, Discord allows ${MAX_CONTENT}`,
     })
+  }
+
+  // Every limit and every style rule is checked here, so a mistake comes back
+  // as a sentence rather than as Discord's nested 400.
+  const embeds = cleanEmbeds(body.embeds)
+  const components = cleanComponents(body.components)
+
+  // Buttons alone are not a message — Discord needs something to attach them to.
+  if (!content && !embeds.length) {
+    throw createError({ statusCode: 400, statusMessage: 'add some text or an embed' })
   }
 
   const sent = await discordRequest<{ id: string }>(
     cfg, 'POST', `/channels/${channelId}/messages`, {
-      content,
+      ...(content ? { content } : {}),
+      ...(embeds.length ? { embeds } : {}),
+      ...(components.length ? { components } : {}),
       // Off by default: an accidental @everyone cannot be taken back, so the
       // pinging version has to be asked for. Mentions still render either way —
       // without this they simply do not notify anyone.
@@ -38,5 +47,8 @@ export default defineEventHandler(async (event) => {
         : { parse: [] },
     })
 
-  return { id: sent.id }
+  // Not an error: the id may well be for a handler about to be written. But a
+  // button that answers "This interaction failed" is worth hearing about now
+  // rather than from the first member who presses it.
+  return { id: sent.id, unhandled: unhandledCustomIds(components) }
 })

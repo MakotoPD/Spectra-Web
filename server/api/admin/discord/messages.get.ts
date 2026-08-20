@@ -34,8 +34,10 @@ export default defineEventHandler(async (event) => {
       .map(m => ({
         id: m.id,
         content: m.content ?? '',
+        // Returned whole rather than counted, so pressing Edit can load the
+        // message back into the builder instead of starting from blank.
         embeds: m.embeds ?? [],
-        hasComponents: !!m.components?.length,
+        components: m.components ?? [],
         timestamp: m.timestamp,
         editedAt: m.edited_timestamp,
       })),
