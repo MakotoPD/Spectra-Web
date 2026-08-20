@@ -1,6 +1,6 @@
 // Spectra accounts — the identity that friends lists and instance sharing hang
 // off. Everything auth-shaped (passwords, sessions, OAuth, TOTP, reset mails)
-// is better-auth's job; we only wire it to SQLite and tell it how to send mail.
+// is better-auth's job; we only wire it to Postgres and tell it how to send mail.
 //
 // Env:
 //   DATABASE_URL         — Postgres, shared with everything else on the server

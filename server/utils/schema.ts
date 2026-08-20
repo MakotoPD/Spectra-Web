@@ -1,6 +1,5 @@
 // Every table this app owns, created on boot next to better-auth's own
-// migration. Postgres, so identity columns and `bigint` timestamps rather than
-// SQLite's `INTEGER PRIMARY KEY` and duck typing.
+// migration.
 //
 // Timestamps stay epoch-milliseconds `bigint` instead of `timestamptz`: they
 // cross the wire to a Rust launcher and a browser, both of which speak epoch
@@ -106,18 +105,9 @@ export async function ensureSchema() {
     WHERE "mcUuid" IS NOT NULL
   `)
 
-  // A notification has no natural id of its own, so re-importing the old SQLite
-  // file used to duplicate every row. Two notifications for the same person, of
-  // the same kind, in the same millisecond are the same notification — this is
-  // what lets the import say ON CONFLICT DO NOTHING and mean it.
-  await pool.query(`
-    DELETE FROM notification a
-    USING notification b
-    WHERE a.id > b.id
-      AND a.user_id = b.user_id AND a.kind = b.kind AND a.created = b.created
-      AND a.actor_id IS NOT DISTINCT FROM b.actor_id
-      AND a.share_code IS NOT DISTINCT FROM b.share_code
-  `)
+  // Two notifications for the same person, of the same kind, in the same
+  // millisecond are the same notification — a double-fired insert, not two
+  // events. The index is what makes that unrepresentable.
   await pool.query(`
     CREATE UNIQUE INDEX IF NOT EXISTS uniq_notification_moment
       ON notification(user_id, kind, created)

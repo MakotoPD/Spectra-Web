@@ -1,8 +1,5 @@
 // One Postgres pool for the whole server: accounts, friends, notifications,
-// share codes and telemetry all live in the same database now.
-//
-// `pg` is async where `better-sqlite3` was synchronous, so every query here
-// returns a promise — that is the whole reason the endpoints gained `await`.
+// share codes and telemetry all live in the same database.
 
 import pg from 'pg'
 
