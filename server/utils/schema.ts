@@ -100,11 +100,21 @@ export async function ensureSchema() {
       ticket_panel_channel    TEXT,
       ticket_prefix           TEXT NOT NULL DEFAULT 'ticket-',
       ticket_open_embed       JSONB NOT NULL DEFAULT '{}',
-      ticket_panel_embed      JSONB NOT NULL DEFAULT '{}',
-      -- Join this voice channel and the bot makes you one of your own.
-      voice_hub               TEXT,
-      voice_category          TEXT
+      ticket_panel_embed      JSONB NOT NULL DEFAULT '{}'
     );
+
+    -- Temporary voice channels, added after discord_config already existed.
+    --
+    -- These cannot go in the CREATE TABLE above. On a database that already has
+    -- the table, IF NOT EXISTS skips the whole statement — so the columns would
+    -- appear on a fresh install and nowhere else, which is exactly what
+    -- happened: column "voice_hub" does not exist, in production only.
+    --
+    -- Any future column on a table that already exists needs its own ALTER for
+    -- the same reason. ADD COLUMN IF NOT EXISTS is idempotent, so this is safe
+    -- to run on every boot and safe on a fresh database too.
+    ALTER TABLE discord_config ADD COLUMN IF NOT EXISTS voice_hub      TEXT;
+    ALTER TABLE discord_config ADD COLUMN IF NOT EXISTS voice_category TEXT;
 
     -- The channels that hub created. They are deleted the moment the last
     -- person leaves, so this table is a list of what is currently alive — and
