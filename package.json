@@ -11,6 +11,7 @@
     "postinstall": "nuxt prepare",
     "check:social": "node test/social-check.mjs",
     "check:sql": "node test/sql-check.mjs",
+    "announce": "node test/announce-release.mjs",
     "check:username": "node test/username-check.mjs",
     "check:discord": "node test/discord-message-check.mjs"
   },
