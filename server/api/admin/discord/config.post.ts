@@ -15,6 +15,7 @@ export default defineEventHandler(async (event) => {
     voiceHub?: string | null
     voiceCategory?: string | null
     releaseChannel?: string | null
+    releaseRole?: string | null
   }>(event) ?? {}
 
   // Every channel/category field is optional and clearable, so "not a
@@ -33,8 +34,8 @@ export default defineEventHandler(async (event) => {
     `INSERT INTO discord_config
        (guild_id, log_channel, ticket_category, ticket_archive_category,
         ticket_panel_channel, ticket_prefix, voice_hub, voice_category,
-        release_channel)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        release_channel, release_role)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      ON CONFLICT (guild_id) DO UPDATE SET
        log_channel             = EXCLUDED.log_channel,
        ticket_category         = EXCLUDED.ticket_category,
@@ -43,7 +44,8 @@ export default defineEventHandler(async (event) => {
        ticket_prefix           = EXCLUDED.ticket_prefix,
        voice_hub               = EXCLUDED.voice_hub,
        voice_category          = EXCLUDED.voice_category,
-       release_channel         = EXCLUDED.release_channel`,
+       release_channel         = EXCLUDED.release_channel,
+       release_role            = EXCLUDED.release_role`,
     [
       cfg.guildId,
       id(body.logChannel, 'logChannel'),
@@ -54,6 +56,7 @@ export default defineEventHandler(async (event) => {
       id(body.voiceHub, 'voiceHub'),
       id(body.voiceCategory, 'voiceCategory'),
       id(body.releaseChannel, 'releaseChannel'),
+      id(body.releaseRole, 'releaseRole'),
     ],
   )
 

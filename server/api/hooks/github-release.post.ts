@@ -110,8 +110,9 @@ export default defineEventHandler(async (event) => {
   const cfg = useDiscord()
   if (!cfg) return { ok: true, skipped: 'Discord is not configured' }
 
-  const row = await one<{ release_channel: string | null }>(
-    'SELECT release_channel FROM discord_config WHERE guild_id = $1', [cfg.guildId])
+  const row = await one<{ release_channel: string | null, release_role: string | null }>(
+    'SELECT release_channel, release_role FROM discord_config WHERE guild_id = $1',
+    [cfg.guildId])
   const channelId = row?.release_channel
   if (!channelId) return { ok: true, skipped: 'no release channel set in the panel' }
 
@@ -129,6 +130,7 @@ export default defineEventHandler(async (event) => {
   const url = release.html_url ?? ''
   const version = tag.replace(/^v/, '')
   const site = process.env.NUXT_PUBLIC_SITE_URL || 'https://spectra.makoto.com.pl'
+  const role = row?.release_role ?? null
 
   try {
     const sentMessage = await discordRequest<{ id: string }>(
@@ -146,8 +148,11 @@ export default defineEventHandler(async (event) => {
           footer: { text: 'Update from inside the launcher, or grab it below' },
         }],
         components: downloadButtons(release.assets ?? [], url),
-        // A release note is allowed to contain an @ that means nothing here.
-        allowed_mentions: { parse: [] },
+        ...(role ? { content: `<@&${role}>` } : {}),
+        // Only the chosen role is allowed to notify anyone. Release notes are
+        // free to contain an @ that means something elsewhere, and an embed is
+        // not a place to discover that it pinged the server.
+        allowed_mentions: role ? { roles: [role] } : { parse: [] },
       })
     return { ok: true, messageId: sentMessage.id }
   } catch (e) {

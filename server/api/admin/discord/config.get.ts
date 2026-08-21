@@ -15,10 +15,11 @@ export default defineEventHandler(async (event) => {
       voice_hub: string | null
       voice_category: string | null
       release_channel: string | null
+      release_role: string | null
     }>(
       `SELECT log_channel, ticket_category, ticket_archive_category,
               ticket_panel_channel, ticket_prefix, voice_hub, voice_category,
-              release_channel
+              release_channel, release_role
        FROM discord_config WHERE guild_id = $1`,
       [cfg.guildId],
     ),
@@ -39,6 +40,7 @@ export default defineEventHandler(async (event) => {
       voiceHub: config?.voice_hub ?? null,
       voiceCategory: config?.voice_category ?? null,
       releaseChannel: config?.release_channel ?? null,
+      releaseRole: config?.release_role ?? null,
     },
     // Categories are what a ticket channel gets created *inside*, so they are
     // offered separately from the channels a message can be posted to.

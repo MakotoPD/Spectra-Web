@@ -116,6 +116,7 @@ export async function ensureSchema() {
     ALTER TABLE discord_config ADD COLUMN IF NOT EXISTS voice_hub      TEXT;
     ALTER TABLE discord_config ADD COLUMN IF NOT EXISTS voice_category TEXT;
     ALTER TABLE discord_config ADD COLUMN IF NOT EXISTS release_channel TEXT;
+    ALTER TABLE discord_config ADD COLUMN IF NOT EXISTS release_role    TEXT;
 
     -- One row per launcher release already announced. GitHub retries a webhook
     -- it thinks failed and lets you redeliver by hand, and neither should ping

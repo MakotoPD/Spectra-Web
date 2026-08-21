@@ -399,11 +399,12 @@ interface BotConfig {
   voiceHub: string | null
   voiceCategory: string | null
   releaseChannel: string | null
+  releaseRole: string | null
 }
 const config = reactive<BotConfig>({
   logChannel: '', ticketCategory: '', ticketArchiveCategory: '',
   ticketPanelChannel: '', ticketPrefix: 'ticket-', ticketRoles: [],
-  voiceHub: '', voiceCategory: '', releaseChannel: '',
+  voiceHub: '', voiceCategory: '', releaseChannel: '', releaseRole: '',
 })
 
 const voiceChannels = ref<Named[]>([])
@@ -432,6 +433,7 @@ async function loadConfig() {
       voiceHub: res.config.voiceHub ?? '',
       voiceCategory: res.config.voiceCategory ?? '',
       releaseChannel: res.config.releaseChannel ?? '',
+      releaseRole: res.config.releaseRole ?? '',
     })
     textChannels.value = res.textChannels
     voiceChannels.value = res.voiceChannels
@@ -484,6 +486,9 @@ defineExpose({ reload: loadStats })
 
 const when = (ms: number) => new Date(ms).toLocaleString()
 const whenIso = (iso: string) => new Date(iso).toLocaleString()
+const roleItems = computed(() =>
+  [{ label: '— no ping —', value: '' }, ...roles.value.map(r => ({ label: `@${r.name}`, value: r.id }))])
+
 const roleName = (id: string) => roles.value.find(r => r.id === id)?.name ?? id
 </script>
 
@@ -904,6 +909,13 @@ const roleName = (id: string) => roles.value.find(r => r.id === id)?.name ?? id
               <USelect v-model="config.releaseChannel" :items="textChannelItems" class="w-full" />
               <p class="mt-1 text-[11px] text-white/30">
                 Where a new launcher version is announced. Off means nothing is posted.
+              </p>
+            </div>
+            <div>
+              <label class="mb-1 block text-[11px] text-white/40">Ping on a release</label>
+              <USelect v-model="config.releaseRole" :items="roleItems" class="w-full" />
+              <p class="mt-1 text-[11px] text-white/30">
+                Only this role is allowed to notify anyone in that message.
               </p>
             </div>
           </div>
