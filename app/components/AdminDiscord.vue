@@ -398,11 +398,12 @@ interface BotConfig {
   ticketRoles: string[]
   voiceHub: string | null
   voiceCategory: string | null
+  releaseChannel: string | null
 }
 const config = reactive<BotConfig>({
   logChannel: '', ticketCategory: '', ticketArchiveCategory: '',
   ticketPanelChannel: '', ticketPrefix: 'ticket-', ticketRoles: [],
-  voiceHub: '', voiceCategory: '',
+  voiceHub: '', voiceCategory: '', releaseChannel: '',
 })
 
 const voiceChannels = ref<Named[]>([])
@@ -430,6 +431,7 @@ async function loadConfig() {
       ticketPanelChannel: res.config.ticketPanelChannel ?? '',
       voiceHub: res.config.voiceHub ?? '',
       voiceCategory: res.config.voiceCategory ?? '',
+      releaseChannel: res.config.releaseChannel ?? '',
     })
     textChannels.value = res.textChannels
     voiceChannels.value = res.voiceChannels
@@ -896,6 +898,13 @@ const roleName = (id: string) => roles.value.find(r => r.id === id)?.name ?? id
             <div>
               <label class="mb-1 block text-[11px] text-white/40">Ticket channel prefix</label>
               <UInput v-model="config.ticketPrefix" class="w-full" placeholder="ticket-" />
+            </div>
+            <div>
+              <label class="mb-1 block text-[11px] text-white/40">Launcher releases</label>
+              <USelect v-model="config.releaseChannel" :items="textChannelItems" class="w-full" />
+              <p class="mt-1 text-[11px] text-white/30">
+                Where a new launcher version is announced. Off means nothing is posted.
+              </p>
             </div>
           </div>
 

@@ -115,6 +115,16 @@ export async function ensureSchema() {
     -- to run on every boot and safe on a fresh database too.
     ALTER TABLE discord_config ADD COLUMN IF NOT EXISTS voice_hub      TEXT;
     ALTER TABLE discord_config ADD COLUMN IF NOT EXISTS voice_category TEXT;
+    ALTER TABLE discord_config ADD COLUMN IF NOT EXISTS release_channel TEXT;
+
+    -- One row per launcher release already announced. GitHub retries a webhook
+    -- it thinks failed and lets you redeliver by hand, and neither should ping
+    -- the server twice — the release id is the thing that must be unique.
+    CREATE TABLE IF NOT EXISTS discord_releases (
+      release_id TEXT PRIMARY KEY,
+      tag        TEXT NOT NULL,
+      posted     BIGINT NOT NULL
+    );
 
     -- The channels that hub created. They are deleted the moment the last
     -- person leaves, so this table is a list of what is currently alive — and
