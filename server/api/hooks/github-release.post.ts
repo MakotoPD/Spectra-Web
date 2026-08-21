@@ -17,6 +17,24 @@ const MAX_NOTES = 3800
 /** The green off the launcher's Play button. */
 const SPECTRA_GREEN = 0x3fb877
 
+/**
+ * The generated release body leads with a markdown table of download links, and
+ * Discord renders no tables — it would arrive as a wall of pipes and dashes. The
+ * changelog below that heading is the half worth reading here; the links live one
+ * click away, on the release the embed title points at.
+ */
+function changelogOnly(body: string): string {
+  const at = body.indexOf("What's Changed")
+  if (at === -1) return body.trim()
+  const eol = body.indexOf('\n', at)
+  return eol === -1 ? '' : body.slice(eol + 1).trim()
+}
+
+interface ReleaseAsset {
+  name?: string
+  browser_download_url?: string
+}
+
 interface ReleasePayload {
   action?: string
   release?: {
@@ -28,7 +46,37 @@ interface ReleasePayload {
     draft?: boolean
     prerelease?: boolean
     published_at?: string
+    assets?: ReleaseAsset[]
   }
+}
+
+/**
+ * Download buttons, built from the files GitHub says are actually on the
+ * release rather than from a guess at their names — the workflow renames
+ * assets (spaces become dots) and a button pointing at a 404 is worse than no
+ * button. One row, and Discord allows five buttons in it.
+ */
+const PLATFORMS: { label: string, emoji: string, match: (name: string) => boolean }[] = [
+  { label: 'Windows', emoji: '🪟', match: n => n.endsWith('-setup.exe') },
+  { label: 'macOS (M1+)', emoji: '🍎', match: n => n.endsWith('aarch64.dmg') },
+  { label: 'macOS (Intel)', emoji: '🍎', match: n => n.endsWith('x64.dmg') },
+  { label: 'Linux (AppImage)', emoji: '🐧', match: n => n.endsWith('.AppImage') },
+  { label: 'Linux (deb)', emoji: '🐧', match: n => n.endsWith('.deb') },
+]
+
+function downloadButtons(assets: ReleaseAsset[], releaseUrl: string) {
+  const buttons = PLATFORMS.flatMap((p) => {
+    const hit = assets.find(a => a.name && a.browser_download_url && p.match(a.name))
+    return hit
+      ? [{ type: 2, style: 5, label: p.label, emoji: { name: p.emoji }, url: hit.browser_download_url! }]
+      : []
+  }).slice(0, 5)
+
+  // Nothing recognised (a hand-made release, say): one button to the page.
+  if (!buttons.length && releaseUrl) {
+    return [{ type: 1, components: [{ type: 2, style: 5, label: 'Downloads', url: releaseUrl }] }]
+  }
+  return buttons.length ? [{ type: 1, components: buttons }] : []
 }
 
 export default defineEventHandler(async (event) => {
@@ -77,22 +125,27 @@ export default defineEventHandler(async (event) => {
     [String(release.id), tag, Date.now()])
   if (!claimed) return { ok: true, skipped: 'already announced' }
 
-  const notes = String(release.body ?? '').trim()
+  const notes = changelogOnly(String(release.body ?? ''))
   const url = release.html_url ?? ''
+  const version = tag.replace(/^v/, '')
+  const site = process.env.NUXT_PUBLIC_SITE_URL || 'https://spectra.makoto.com.pl'
 
   try {
     const sentMessage = await discordRequest<{ id: string }>(
       cfg, 'POST', `/channels/${channelId}/messages`, {
         embeds: [{
-          title: release.name || `Spectra Launcher ${tag.replace(/^v/, '')}`,
+          author: { name: 'Spectra Launcher', url: site, icon_url: `${site}/logo.png` },
+          title: `Version ${version} is out`,
           ...(url ? { url } : {}),
           description: notes.length > MAX_NOTES
             ? `${notes.slice(0, MAX_NOTES)}…\n\n[Read the rest on GitHub](${url})`
             : notes,
           color: SPECTRA_GREEN,
+          thumbnail: { url: `${site}/logo-transparent.png` },
           ...(release.published_at ? { timestamp: release.published_at } : {}),
-          footer: { text: 'Spectra Launcher' },
+          footer: { text: 'Update from inside the launcher, or grab it below' },
         }],
+        components: downloadButtons(release.assets ?? [], url),
         // A release note is allowed to contain an @ that means nothing here.
         allowed_mentions: { parse: [] },
       })
